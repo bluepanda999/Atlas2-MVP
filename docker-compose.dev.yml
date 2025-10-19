@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  # Web Application
+  atlas2-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_BASE_URL=http://localhost:3001
+      - VITE_MAX_FILE_SIZE=3221225472
+    depends_on:
+      - atlas2-api
+      - redis
+      - postgres
+    networks:
+      - atlas2-network
+
+  # API Processing Service
+  atlas2-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://atlas2:password@postgres:5432/atlas2_dev
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev-secret-key
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - atlas2-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=atlas2_dev
+      - POSTGRES_USER=atlas2
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - atlas2-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - atlas2-network
+
+  # File Processing Worker
+  atlas2-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    volumes:
+      - ./uploads:/app/uploads
+      - ./worker:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://atlas2:password@postgres:5432/atlas2_dev
+      - REDIS_URL=redis://redis:6379
+      - MAX_FILE_SIZE=3221225472
+      - CHUNK_SIZE=65536
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - atlas2-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  atlas2-network:
+    driver: bridge

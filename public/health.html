@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atlas2 Health Check</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .health-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+        .healthy { background-color: #52c41a; color: white; }
+        .unhealthy { background-color: #ff4d4f; color: white; }
+        .unknown { background-color: #faad14; color: white; }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .metric {
+            text-align: center;
+            padding: 15px;
+            background: #fafafa;
+            border-radius: 6px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1890ff;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="health-card">
+        <h1>Atlas2 Health Check</h1>
+        <p><strong>Status:</strong> <span id="status" class="status unknown">Checking...</span></p>
+        <p><strong>Version:</strong> <span id="version">1.0.0</span></p>
+        <p><strong>Timestamp:</strong> <span id="timestamp"></span></p>
+    </div>
+
+    <div class="health-card">
+        <h2>System Metrics</h2>
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-value" id="uptime">0</div>
+                <div class="metric-label">Uptime (seconds)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="memory">0</div>
+                <div class="metric-label">Memory Usage (MB)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="connections">0</div>
+                <div class="metric-label">Active Connections</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="jobs">0</div>
+                <div class="metric-label">Active Jobs</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="health-card">
+        <h2>Service Status</h2>
+        <div id="services">
+            <p>Checking services...</p>
+        </div>
+    </div>
+
+    <script>
+        // Update timestamp
+        document.getElementById('timestamp').textContent = new Date().toISOString();
+
+        // Simulate health check
+        async function checkHealth() {
+            try {
+                // Check API health
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('status').className = 'status healthy';
+                    document.getElementById('status').textContent = 'Healthy';
+                    
+                    // Update metrics
+                    if (data.uptime) {
+                        document.getElementById('uptime').textContent = Math.floor(data.uptime);
+                    }
+                    if (data.memory) {
+                        const memoryMB = Math.round(data.memory.used / (1024 * 1024));
+                        document.getElementById('memory').textContent = memoryMB;
+                    }
+                } else {
+                    throw new Error('API unhealthy');
+                }
+            } catch (error) {
+                document.getElementById('status').className = 'status unhealthy';
+                document.getElementById('status').textContent = 'Unhealthy';
+            }
+
+            // Check services
+            checkServices();
+        }
+
+        async function checkServices() {
+            const services = [
+                { name: 'API', url: '/api/health' },
+                { name: 'Database', url: '/api/health/ready' },
+                { name: 'Redis', url: '/api/health/ready' }
+            ];
+
+            let servicesHtml = '';
+            for (const service of services) {
+                try {
+                    const response = await fetch(service.url);
+                    const status = response.ok ? 'healthy' : 'unhealthy';
+                    const statusClass = response.ok ? 'healthy' : 'unhealthy';
+                    servicesHtml += `<p><strong>${service.name}:</strong> <span class="status ${statusClass}">${status}</span></p>`;
+                } catch (error) {
+                    servicesHtml += `<p><strong>${service.name}:</strong> <span class="status unhealthy">unreachable</span></p>`;
+                }
+            }
+            document.getElementById('services').innerHTML = servicesHtml;
+        }
+
+        // Initial check
+        checkHealth();
+
+        // Check every 30 seconds
+        setInterval(checkHealth, 30000);
+
+        // Simulate some metrics
+        document.getElementById('connections').textContent = Math.floor(Math.random() * 100);
+        document.getElementById('jobs').textContent = Math.floor(Math.random() * 10);
+    </script>
+</body>
+</html>

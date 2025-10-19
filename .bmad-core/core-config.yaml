@@ -12,11 +12,23 @@ architecture:
   architectureVersion: v4
   architectureSharded: true
   architectureShardedLocation: docs/architecture
-customTechnicalDocuments: null
+customTechnicalDocuments:
+  - DEPLOYMENT.md
+  - docker-compose.dev.yml
+  - docker-compose.prod.yml
+  - nginx.conf
+  - docs/architecture/architecture.md
+  - docs/architecture/coding-standards.md
+  - docs/architecture/tech-stack.md
+  - docs/architecture/source-tree.md
 devLoadAlwaysFiles:
   - docs/architecture/coding-standards.md
   - docs/architecture/tech-stack.md
   - docs/architecture/source-tree.md
+  - DEPLOYMENT.md
 devDebugLog: .ai/debug-log.md
 devStoryLocation: docs/stories
 slashPrefix: BMad
+projectType: web-application
+deploymentMethod: docker-compose
+architecture: microservices
