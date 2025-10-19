@@ -1,0 +1,65 @@
+schema: 1
+story: '1.1'
+story_title: 'CSV File Upload Interface - Brownfield Addition'
+gate: CONCERNS
+status_reason: 'Core functionality implemented but critical gaps in file size handling and test coverage.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-10-19T10:30:00Z'
+
+top_issues:
+  - id: 'REQ-001'
+    severity: high
+    finding: 'File size limit is 50MB but requirement is 3GB'
+    suggested_action: 'Implement streaming upload with chunked processing'
+  - id: 'TEST-001'
+    severity: high
+    finding: 'No test coverage for upload functionality'
+    suggested_action: 'Add unit, integration, and e2e tests for upload workflow'
+  - id: 'PERF-001'
+    severity: medium
+    finding: 'Memory-based storage will cause issues with large files'
+    suggested_action: 'Switch to streaming storage with temporary file handling'
+  - id: 'SEC-001'
+    severity: medium
+    finding: 'Basic file validation only'
+    suggested_action: 'Add enhanced validation, virus scanning, and content inspection'
+
+waiver: { active: false }
+
+quality_score: 60
+expires: '2025-11-02T10:30:00Z'
+
+evidence:
+  tests_reviewed: 0
+  risks_identified: 4
+  trace:
+    ac_covered: [1, 2, 3, 4] # Partial implementation
+    ac_gaps: [1] # File size requirement not met
+
+nfr_validation:
+  security:
+    status: CONCERNS
+    notes: 'Basic auth implemented but file validation needs enhancement'
+  performance:
+    status: CONCERNS
+    notes: 'Current implementation will not handle 3GB files'
+  reliability:
+    status: CONCERNS
+    notes: 'No tests to verify reliability under load'
+  maintainability:
+    status: PASS
+    notes: 'Code is well-structured and follows patterns'
+
+recommendations:
+  immediate:
+    - action: 'Implement streaming upload to handle 3GB files'
+      refs: ['api/controllers/upload.controller.ts', 'api/services/upload.service.ts']
+    - action: 'Add comprehensive test suite'
+      refs: ['tests/']
+    - action: 'Update file size limits'
+      refs: ['api/controllers/upload.controller.ts']
+  future:
+    - action: 'Add file virus scanning'
+      refs: ['api/services/upload.service.ts']
+    - action: 'Implement upload resume functionality'
+      refs: ['api/services/upload.service.ts', 'src/store/upload.ts']
