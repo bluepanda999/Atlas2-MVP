@@ -1,0 +1,99 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # API Logs
+  - job_name: atlas2-api
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: atlas2-api
+          __path__: /var/log/atlas2/api/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            timestamp: timestamp
+            message: message
+            service: service
+            request_id: request_id
+            user_id: user_id
+      - timestamp:
+          format: RFC3339
+          source: timestamp
+      - labels:
+          level:
+          service:
+          request_id:
+          user_id:
+
+  # Worker Logs
+  - job_name: atlas2-worker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: atlas2-worker
+          __path__: /var/log/atlas2/worker/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            timestamp: timestamp
+            message: message
+            service: service
+            job_id: job_id
+            job_type: job_type
+      - timestamp:
+          format: RFC3339
+          source: timestamp
+      - labels:
+          level:
+          service:
+          job_id:
+          job_type:
+
+  # Nginx Logs
+  - job_name: atlas2-nginx
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: atlas2-nginx
+          __path__: /var/log/nginx/*.log
+    pipeline_stages:
+      - regex:
+          expression: '(?P<remote_addr>\S+) - (?P<remote_user>\S+) \[(?P<time_local>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+) (?P<protocol>\S+)" (?P<status>\d+) (?P<body_bytes_sent>\d+) "(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"'
+      - timestamp:
+          format: '02/Jan/2006:15:04:05 -0700'
+          source: time_local
+      - labels:
+          method:
+          status:
+          remote_addr:
+
+  # System Logs
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: system
+          __path__: /var/log/syslog
+    pipeline_stages:
+      - regex:
+          expression: '(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+) (?P<hostname>\S+) (?P<service>\S+): (?P<message>.*)'
+      - timestamp:
+          format: 'Jan 02 15:04:05'
+          source: timestamp
+      - labels:
+          hostname:
+          service:

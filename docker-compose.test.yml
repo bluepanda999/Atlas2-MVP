@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # Test Database
+  postgres-test:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=atlas2_test
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - atlas2-test-network
+
+  # Test Redis
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_test_data:/data
+    networks:
+      - atlas2-test-network
+
+  # Test API
+  atlas2-api-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://test:test@postgres-test:5432/atlas2_test
+      - REDIS_URL=redis://redis-test:6379
+      - JWT_SECRET=test-secret-key
+    depends_on:
+      - postgres-test
+      - redis-test
+    networks:
+      - atlas2-test-network
+    command: npm run test:integration:server
+
+  # Test Web App
+  atlas2-web-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=test
+      - VITE_API_BASE_URL=http://localhost:3001
+    depends_on:
+      - atlas2-api-test
+    networks:
+      - atlas2-test-network
+    command: npm run test:e2e:server
+
+volumes:
+  postgres_test_data:
+  redis_test_data:
+
+networks:
+  atlas2-test-network:
+    driver: bridge
