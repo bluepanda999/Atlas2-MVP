@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { useAuthStore } from './store/auth';
 import { apiService } from './services/api';
 
@@ -7,6 +7,25 @@ import { apiService } from './services/api';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
 import Mapping from './pages/Mapping';
+
+// Components
+import DataValidation from './components/features/validation/DataValidation';
+
+// Validation route wrapper
+const ValidationRoute: React.FC = () => {
+  const { fileId, fileName } = useParams<{ fileId: string; fileName: string }>();
+  
+  if (!fileId || !fileName) {
+    return <Navigate to="/upload" replace />;
+  }
+  
+  return (
+    <DataValidation 
+      fileId={fileId} 
+      fileName={decodeURIComponent(fileName)} 
+    />
+  );
+};
 
 // Components
 import { Toast } from './components/common';
@@ -109,6 +128,11 @@ const App: React.FC = () => {
           <Route path="/mapping" element={
             <ProtectedRoute>
               <Mapping />
+            </ProtectedRoute>
+          } />
+          <Route path="/validation/:fileId/:fileName" element={
+            <ProtectedRoute>
+              <ValidationRoute />
             </ProtectedRoute>
           } />
           <Route path="/integrations" element={

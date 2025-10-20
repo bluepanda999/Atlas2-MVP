@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/layout';
 import { FileUpload } from '../components/forms';
 import { UploadProgress, UploadHistory } from '../components/features/upload';
@@ -7,6 +8,7 @@ import { useUploadStore } from '../store/upload';
 import { ProcessingJob } from '../types';
 
 const Upload: React.FC = () => {
+  const navigate = useNavigate();
   const [showHistory, setShowHistory] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
@@ -23,7 +25,12 @@ const Upload: React.FC = () => {
     if (files.length > 0) {
       const file = files[0];
       setSelectedFile(file);
-      await uploadFile(file);
+      const job = await uploadFile(file);
+      
+      // If upload is successful, navigate to validation
+      if (job && job.status === 'completed') {
+        navigate(`/validation/${job.id}/${encodeURIComponent(file.name)}`);
+      }
     }
   };
 
@@ -36,8 +43,10 @@ const Upload: React.FC = () => {
   };
 
   const handleViewDetails = (jobId: string) => {
-    // Navigate to job details page
-    console.log('View details for job:', jobId);
+    const job = uploadHistory.find(j => j.id === jobId);
+    if (job) {
+      navigate(`/validation/${jobId}/${encodeURIComponent(job.fileName || 'unknown.csv')}`);
+    }
   };
 
   return (
@@ -82,6 +91,17 @@ const Upload: React.FC = () => {
               job={currentJob}
               onCancel={cancelJob}
             />
+            
+            {currentJob.status === 'completed' && (
+              <div className="mt-4 flex justify-center">
+                <Button
+                  variant="primary"
+                  onClick={() => navigate(`/validation/${currentJob.id}/${encodeURIComponent(currentJob.fileName || 'unknown.csv')}`)}
+                >
+                  Validate Data
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

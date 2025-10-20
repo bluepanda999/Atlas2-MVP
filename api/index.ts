@@ -14,11 +14,14 @@ import { AuthService } from './services/auth.service';
 import { UploadService } from './services/upload.service';
 import { MappingService } from './services/mapping.service';
 import { IntegrationService } from './services/integration.service';
+import { ValidationService } from './services/validation.service';
+import { WebSocketService } from './services/websocket.service';
 import { JobQueueService } from './services/job-queue.service';
 import { AuthController } from './controllers/auth.controller';
 import { UploadController } from './controllers/upload.controller';
 import { MappingController } from './controllers/mapping.controller';
 import { IntegrationController } from './controllers/integration.controller';
+import { ValidationController } from './controllers/validation.controller';
 import { AuthMiddleware } from './middleware/auth.middleware';
 import { ErrorMiddleware } from './middleware/error.middleware';
 import { createRoutes } from './routes';
@@ -27,11 +30,13 @@ class Application {
   public app: express.Application;
   private databaseService: DatabaseService;
   private jobQueueService: JobQueueService;
+  private webSocketService: WebSocketService;
 
   constructor() {
     this.app = express();
     this.databaseService = new DatabaseService();
     this.jobQueueService = new JobQueueService();
+    this.webSocketService = new WebSocketService();
   }
 
   public async initialize(): Promise<void> {
@@ -43,6 +48,10 @@ class Application {
       // Initialize job queue
       await this.jobQueueService.initialize();
       logger.info('Job queue initialized successfully');
+
+      // Initialize WebSocket service
+      await this.webSocketService.initialize();
+      logger.info('WebSocket service initialized successfully');
 
       // Setup middleware
       this.setupMiddleware();
@@ -102,12 +111,14 @@ class Application {
     const uploadService = new UploadService(uploadRepository, this.jobQueueService);
     const mappingService = new MappingService(mappingRepository);
     const integrationService = new IntegrationService(integrationRepository);
+    const validationService = new ValidationService(this.databaseService, this.webSocketService);
 
     // Initialize controllers
     const authController = new AuthController(authService);
     const uploadController = new UploadController(uploadService);
     const mappingController = new MappingController(mappingService);
     const integrationController = new IntegrationController(integrationService);
+    const validationController = new ValidationController(validationService);
 
     // Initialize middleware
     const authMiddleware = new AuthMiddleware(userRepository);
@@ -119,6 +130,7 @@ class Application {
       uploadController,
       mappingController,
       integrationController,
+      validationController,
       authMiddleware,
       errorMiddleware
     ));
@@ -162,6 +174,9 @@ class Application {
     
     // Close job queue
     await this.jobQueueService.shutdown();
+    
+    // Close WebSocket service
+    await this.webSocketService.shutdown();
     
     logger.info('Application shutdown complete');
   }
