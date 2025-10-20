@@ -41,15 +41,5 @@ export default {
   forceExit: true,
   clearMocks: true,
   resetMocks: true,
-  restoreMocks: true,
-  extensionsToTreatAsEsm: ['.ts'],
-  globals: {
-    'ts-jest': {
-      useESM: true,
-      tsconfig: {
-        esModuleInterop: true,
-        allowSyntheticDefaultImports: true
-      }
-    }
-  }
+  restoreMocks: true
 };
