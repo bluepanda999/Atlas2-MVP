@@ -1,38 +1,20 @@
 import { Router } from 'express';
-import multer from 'multer';
-import path from 'path';
 import { processCSVFile } from '../services/csvProcessor';
 import { logger } from '../utils/logger';
+import { UploadController } from '../../../controllers/upload.controller';
+import { UploadService } from '../../../services/upload.service';
+import { UploadRepository } from '../../../repositories/upload.repository';
+import { JobQueueService } from '../../../services/job-queue.service';
 
 const router = Router();
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, '/app/uploads');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Initialize dependencies
+const uploadRepository = new UploadRepository();
+const jobQueueService = new JobQueueService();
+const uploadService = new UploadService(uploadRepository, jobQueueService);
+const uploadController = new UploadController(uploadService);
 
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE || '3221225472') // 3GB
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'text/csv' || 
-        file.originalname.toLowerCase().endsWith('.csv')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only CSV files are allowed'));
-    }
-  }
-});
-
-router.post('/', upload.single('csvFile'), async (req, res) => {
+router.post('/', uploadController.uploadMiddleware, uploadController.uploadFile.bind(uploadController));
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -66,23 +48,12 @@ router.post('/', upload.single('csvFile'), async (req, res) => {
   }
 });
 
-router.get('/status/:jobId', async (req, res) => {
-  try {
-    const { jobId } = req.params;
-    // TODO: Implement job status checking
-    res.json({
-      jobId,
-      status: 'processing',
-      progress: 0,
-      message: 'Processing file...'
-    });
-  } catch (error) {
-    logger.error('Status check error:', error);
-    res.status(500).json({
-      error: 'Status check failed',
-      message: error.message
-    });
-  }
-});
+// All routes except upload require authentication
+router.get('/status/:jobId', uploadController.getJobStatus.bind(uploadController));
+router.get('/history', uploadController.getUploadHistory.bind(uploadController));
+router.post('/:jobId/cancel', uploadController.cancelJob.bind(uploadController));
+router.post('/:jobId/retry', uploadController.retryJob.bind(uploadController));
+router.delete('/:jobId', uploadController.deleteJob.bind(uploadController));
+router.get('/:jobId/download', uploadController.downloadFile.bind(uploadController));
 
 export { router as fileUploadRouter };

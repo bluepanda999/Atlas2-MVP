@@ -22,8 +22,8 @@ app.use(cors({
 
 // Performance middleware
 app.use(compression());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '3gb' }));
+app.use(express.urlencoded({ extended: true, limit: '3gb' }));
 
 // Rate limiting
 app.use(rateLimiter);
