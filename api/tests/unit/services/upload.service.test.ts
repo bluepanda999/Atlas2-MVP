@@ -1,10 +1,20 @@
 import { UploadService } from '../../../src/services/upload.service';
+import { UploadRepository } from '../../../repositories/upload.repository';
+import { JobQueueService } from '../../../services/job-queue.service';
+
+// Mock dependencies
+jest.mock('../../../repositories/upload.repository');
+jest.mock('../../../services/job-queue.service');
 
 describe('UploadService', () => {
   let uploadService: UploadService;
+  let mockUploadRepository: jest.Mocked<UploadRepository>;
+  let mockJobQueueService: jest.Mocked<JobQueueService>;
 
   beforeEach(() => {
-    uploadService = new UploadService();
+    mockUploadRepository = new UploadRepository({} as any) as jest.Mocked<UploadRepository>;
+    mockJobQueueService = new JobQueueService() as jest.Mocked<JobQueueService>;
+    uploadService = new UploadService(mockUploadRepository, mockJobQueueService);
   });
 
   describe('Basic functionality', () => {

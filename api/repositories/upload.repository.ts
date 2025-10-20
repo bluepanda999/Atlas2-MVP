@@ -1,55 +1,56 @@
-import { ProcessingJob } from '../types/upload';
+import { ProcessingJob, UploadHistoryResult } from '../types/upload';
 import { DatabaseService } from '../services/database.service';
 
 export class UploadRepository {
   constructor(private db: DatabaseService) {}
 
-  async create(jobData: Omit<ProcessingJob, 'id' | 'createdAt' | 'updatedAt'>): Promise<ProcessingJob> {
+  async createJob(jobData: ProcessingJob): Promise<ProcessingJob> {
     const query = `
       INSERT INTO processing_jobs (
-        user_id, file_name, file_size, status, progress, 
-        records_processed, total_records, csv_headers, 
-        error_message, processing_time, estimated_time_remaining,
-        created_at, updated_at
+        id, user_id, original_name, file_path, file_size, status, progress, 
+        processed_records, total_records, error_message, 
+        started_at, completed_at, created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
       RETURNING *
     `;
     
     const values = [
+      jobData.id,
       jobData.userId,
-      jobData.fileName,
+      jobData.originalName,
+      jobData.filePath,
       jobData.fileSize,
       jobData.status,
       jobData.progress,
-      jobData.recordsProcessed,
+      jobData.processedRecords,
       jobData.totalRecords,
-      JSON.stringify(jobData.csvHeaders),
       jobData.errorMessage,
-      jobData.processingTime,
-      jobData.estimatedTimeRemaining,
+      jobData.startedAt,
+      jobData.completedAt,
     ];
 
     const result = await this.db.query(query, values);
     return this.mapRowToJob(result.rows[0]);
   }
 
-  async findById(id: string): Promise<ProcessingJob | null> {
+  async getJobById(id: string): Promise<ProcessingJob | null> {
     const query = 'SELECT * FROM processing_jobs WHERE id = $1';
     const result = await this.db.query(query, [id]);
     
     return result.rows.length > 0 ? this.mapRowToJob(result.rows[0]) : null;
   }
 
-  async findByUserId(
+  async getJobsByUserId(
     userId: string,
     options: {
-      status?: ProcessingJob['status'];
+      page?: number;
       limit?: number;
-      offset?: number;
+      status?: ProcessingJob['status'];
     } = {}
-  ): Promise<{ jobs: ProcessingJob[]; total: number }> {
-    const { status, limit = 10, offset = 0 } = options;
+  ): Promise<UploadHistoryResult> {
+    const { page = 1, limit = 10, status } = options;
+    const offset = (page - 1) * limit;
     
     let whereClause = 'WHERE user_id = $1';
     const queryParams: any[] = [userId];
@@ -77,37 +78,32 @@ export class UploadRepository {
     const jobsResult = await this.db.query(jobsQuery, queryParams);
     const jobs = jobsResult.rows.map(row => this.mapRowToJob(row));
 
-    return { jobs, total };
+    return {
+      jobs,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
-  async update(id: string, updates: Partial<ProcessingJob>): Promise<ProcessingJob | null> {
-    const fields = Object.keys(updates).filter(key => key !== 'id');
-    const values = fields.map(field => updates[field as keyof ProcessingJob]);
-    
-    if (fields.length === 0) {
-      return this.findById(id);
-    }
-
-    const setClause = fields.map((field, index) => {
-      const snakeField = this.camelToSnake(field);
-      if (field === 'csvHeaders') {
-        return `${snakeField} = $${index + 2}::jsonb`;
-      }
-      return `${snakeField} = $${index + 2}`;
-    }).join(', ');
-
+  async updateJobStatus(id: string, status: ProcessingJob['status']): Promise<ProcessingJob> {
     const query = `
       UPDATE processing_jobs 
-      SET ${setClause}, updated_at = NOW()
+      SET status = $2, updated_at = NOW()
       WHERE id = $1
       RETURNING *
     `;
     
-    const result = await this.db.query(query, [id, ...values]);
-    return result.rows.length > 0 ? this.mapRowToJob(result.rows[0]) : null;
+    const result = await this.db.query(query, [id, status]);
+    if (result.rows.length === 0) {
+      throw new Error('Job not found');
+    }
+    
+    return this.mapRowToJob(result.rows[0]);
   }
 
-  async delete(id: string): Promise<void> {
+  async deleteJob(id: string): Promise<void> {
     // Also delete associated file data
     await this.db.query('DELETE FROM file_data WHERE job_id = $1', [id]);
     await this.db.query('DELETE FROM processing_jobs WHERE id = $1', [id]);
@@ -174,16 +170,16 @@ export class UploadRepository {
     return {
       id: row.id,
       userId: row.user_id,
-      fileName: row.file_name,
+      originalName: row.original_name,
+      filePath: row.file_path,
       fileSize: row.file_size,
       status: row.status,
       progress: row.progress,
-      recordsProcessed: row.records_processed,
+      processedRecords: row.processed_records,
       totalRecords: row.total_records,
-      csvHeaders: row.csv_headers || [],
       errorMessage: row.error_message,
-      processingTime: row.processing_time,
-      estimatedTimeRemaining: row.estimated_time_remaining,
+      startedAt: row.started_at,
+      completedAt: row.completed_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
