@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GUI Test</title>
+</head>
+<body>
+    <h1>GUI Test</h1>
+    <p>If you can see this page, the web server is working.</p>
+    <p>Now check the main application at <a href="http://localhost:3000">http://localhost:3000</a></p>
+    
+    <script>
+        // Test if the main app loads
+        fetch('http://localhost:3000/')
+            .then(response => response.text())
+            .then(html => {
+                if (html.includes('Atlas2')) {
+                    document.body.innerHTML += '<p style="color: green;">✅ Main application is loading correctly!</p>';
+                } else {
+                    document.body.innerHTML += '<p style="color: red;">❌ Main application may have issues.</p>';
+                }
+            })
+            .catch(error => {
+                document.body.innerHTML += `<p style="color: red;">❌ Error accessing main app: ${error.message}</p>`;
+            });
+    </script>
+</body>
+</html>

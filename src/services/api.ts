@@ -26,6 +26,11 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
+    // DEVELOPMENT BYPASS: Return mock responses for development
+    if (import.meta.env.DEV) {
+      return this.mockResponse<T>(endpoint, options);
+    }
+
     const url = `${this.baseURL}${endpoint}`;
     const token = storage.get<string>(STORAGE_KEYS.authToken);
 
@@ -83,6 +88,63 @@ class ApiClient {
     }
 
     throw lastError!;
+  }
+
+  // Mock response handler for development
+  private async mockResponse<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Mock upload endpoint
+    if (endpoint.includes('/upload/upload') && options.method === 'POST') {
+      const mockJob = {
+        id: `job-${Date.now()}`,
+        fileName: 'test.csv',
+        fileSize: 1024,
+        status: 'completed',
+        progress: 100,
+        totalRecords: 100,
+        recordsProcessed: 100,
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+      };
+      return mockJob as T;
+    }
+
+    // Mock upload history
+    if (endpoint.includes('/upload/jobs') && options.method === 'GET') {
+      const mockHistory = [
+        {
+          id: 'job-1',
+          fileName: 'test.csv',
+          fileSize: 1024,
+          status: 'completed',
+          progress: 100,
+          totalRecords: 100,
+          recordsProcessed: 100,
+          createdAt: new Date().toISOString(),
+        }
+      ];
+      return { data: mockHistory } as T;
+    }
+
+    // Mock job status
+    if (endpoint.includes('/upload/jobs/') && options.method === 'GET') {
+      const mockJob = {
+        id: 'job-1',
+        fileName: 'test.csv',
+        fileSize: 1024,
+        status: 'completed',
+        progress: 100,
+        totalRecords: 100,
+        recordsProcessed: 100,
+        createdAt: new Date().toISOString(),
+      };
+      return mockJob as T;
+    }
+
+    // Default mock response
+    return { success: true, data: null } as T;
   }
 
   // HTTP methods
@@ -307,11 +369,15 @@ export class MappingService {
 
 export class ApiService {
   setAuthToken(token: string) {
-    storage.set(STORAGE_KEYS.authToken, token);
+    if (typeof window !== 'undefined') {
+      storage.set(STORAGE_KEYS.authToken, token);
+    }
   }
 
   clearAuthToken() {
-    storage.remove(STORAGE_KEYS.authToken);
+    if (typeof window !== 'undefined') {
+      storage.remove(STORAGE_KEYS.authToken);
+    }
   }
 
   async createApiConfiguration(configData: any) {

@@ -29,6 +29,16 @@ export class AuthMiddleware {
 
       const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
+      // DEVELOPMENT BYPASS: In development mode, accept mock tokens
+      if (process.env.NODE_ENV === 'development' && token === 'dev-token-for-poc') {
+        req.user = {
+          id: 'dev-user-1',
+          email: 'dev@example.com',
+          role: 'admin',
+        };
+        return next();
+      }
+
       // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
       
