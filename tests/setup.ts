@@ -1,4 +1,5 @@
 import { config } from 'dotenv';
+import { Logger } from '@nestjs/common';
 
 // Load test environment variables
 config({ path: '.env.test' });
@@ -6,69 +7,44 @@ config({ path: '.env.test' });
 // Set test environment
 process.env.NODE_ENV = 'test';
 
-// Global test timeout
-jest.setTimeout(30000);
-
-// Mock console methods in tests
-global.console = {
-  ...console,
-  // Uncomment to ignore console.log in tests
-  // log: jest.fn(),
-  // debug: jest.fn(),
-  // info: jest.fn(),
-  // warn: jest.fn(),
-  // error: jest.fn(),
-};
-
-// Setup global test utilities
-declare global {
-  namespace jest {
-    interface Matchers<R> {
-      toBeValidDate(): R;
-      toBeValidUuid(): R;
-      toBeValidEmail(): R;
-    }
-  }
-}
-
-// Custom matchers
-expect.extend({
-  toBeValidDate(received: string) {
-    const date = new Date(received);
-    const pass = !isNaN(date.getTime());
-    return {
-      message: () =>
-        pass
-          ? `expected ${received} not to be a valid date`
-          : `expected ${received} to be a valid date`,
-      pass,
-    };
-  },
-  toBeValidUuid(received: string) {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const pass = uuidRegex.test(received);
-    return {
-      message: () =>
-        pass
-          ? `expected ${received} not to be a valid UUID`
-          : `expected ${received} to be a valid UUID`,
-      pass,
-    };
-  },
-  toBeValidEmail(received: string) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const pass = emailRegex.test(received);
-    return {
-      message: () =>
-        pass
-          ? `expected ${received} not to be a valid email`
-          : `expected ${received} to be a valid email`,
-      pass,
-    };
-  },
+// Global test setup
+beforeAll(async () => {
+  const logger = new Logger('TestSetup');
+  logger.log('Setting up test environment...');
+  
+  // Set default test values
+  process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/atlas2_test';
+  process.env.REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379/1';
+  process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
+  process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'test-encryption-key-32-chars-long';
+  process.env.UPLOAD_DIR = process.env.UPLOAD_DIR || './test-uploads';
+  process.env.MAX_FILE_SIZE = process.env.MAX_FILE_SIZE || '3221225472'; // 3GB
+  process.env.CHUNK_SIZE = process.env.CHUNK_SIZE || '65536'; // 64KB
 });
 
-// Clean up after each test
-afterEach(() => {
-  jest.clearAllMocks();
+afterAll(async () => {
+  const logger = new Logger('TestSetup');
+  logger.log('Cleaning up test environment...');
+  
+  // Cleanup test files
+  const fs = require('fs').promises;
+  const path = require('path');
+  
+  try {
+    const testUploadDir = process.env.UPLOAD_DIR || './test-uploads';
+    await fs.rmdir(testUploadDir, { recursive: true });
+  } catch (error) {
+    // Ignore cleanup errors
+  }
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
 });

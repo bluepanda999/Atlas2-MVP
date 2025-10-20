@@ -1,53 +1,45 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/tests', '<rootDir>/src', '<rootDir>/api', '<rootDir>/worker'],
+  roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: [
-    '**/__tests__/**/*.+(ts|tsx|js)',
-    '**/*.(test|spec).+(ts|tsx|js)'
+    '**/__tests__/**/*.ts',
+    '**/?(*.)+(spec|test).ts'
   ],
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest'
+    '^.+\\.ts$': 'ts-jest',
   },
   collectCoverageFrom: [
-    'src/**/*.{ts,tsx}',
-    'api/**/*.{ts,tsx}',
-    'worker/**/*.{ts,tsx}',
-    '!**/*.d.ts',
-    '!**/node_modules/**',
-    '!**/dist/**',
-    '!**/coverage/**'
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/main.ts',
+    '!src/**/*.interface.ts',
+    '!src/**/*.dto.ts',
   ],
   coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'lcov', 'html'],
+  coverageReporters: [
+    'text',
+    'lcov',
+    'html',
+    'json'
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    }
+  },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
+  testTimeout: 30000,
   moduleNameMapping: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    '^@api/(.*)$': '<rootDir>/api/$1',
-    '^@worker/(.*)$': '<rootDir>/worker/$1',
-    '^@tests/(.*)$': '<rootDir>/tests/$1'
+    '^@test/(.*)$': '<rootDir>/tests/$1'
   },
-  testTimeout: 30000,
   verbose: true,
-  projects: [
-    {
-      displayName: 'unit',
-      testMatch: ['<rootDir>/tests/unit/**/*.test.ts'],
-      testEnvironment: 'node'
-    },
-    {
-      displayName: 'integration',
-      testMatch: ['<rootDir>/tests/integration/**/*.test.ts'],
-      testEnvironment: 'node',
-      globalSetup: '<rootDir>/tests/integration/setup.ts',
-      globalTeardown: '<rootDir>/tests/integration/teardown.ts'
-    },
-    {
-      displayName: 'e2e',
-      testMatch: ['<rootDir>/tests/e2e/**/*.test.ts'],
-      testEnvironment: 'node',
-      globalSetup: '<rootDir>/tests/e2e/setup.ts',
-      globalTeardown: '<rootDir>/tests/e2e/teardown.ts'
-    }
-  ]
+  forceExit: true,
+  clearMocks: true,
+  resetMocks: true,
+  restoreMocks: true
 };
