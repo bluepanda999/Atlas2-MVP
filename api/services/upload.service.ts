@@ -4,6 +4,9 @@ import { JobQueueService } from './job-queue.service';
 import { AppError } from '../utils/errors';
 import { parseCSV } from '../utils/csv-parser';
 import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs/promises';
+import { createReadStream } from 'fs';
+import { parse } from 'csv-parse';
 
 export class UploadService {
   constructor(
@@ -12,16 +15,16 @@ export class UploadService {
   ) {}
 
   async uploadFile(
-    buffer: Buffer,
+    filePath: string,
     originalName: string,
     size: number,
     userId: string
   ): Promise<ProcessingJob> {
     try {
-      // Parse CSV to get basic info
-      const csvData = await parseCSV(buffer.toString());
-      const headers = csvData.headers;
-      const totalRecords = csvData.data.length;
+      // Parse CSV to get basic info (streaming for large files)
+      const csvInfo = await this.getCsvInfo(filePath);
+      const headers = csvInfo.headers;
+      const totalRecords = csvInfo.totalRecords;
 
       // Create processing job
       const job: Omit<ProcessingJob, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -45,7 +48,7 @@ export class UploadService {
         jobId: savedJob.id,
         userId,
         fileName: originalName,
-        csvData: buffer.toString(),
+        filePath: filePath,
       });
 
       return savedJob;
@@ -223,5 +226,34 @@ export class UploadService {
     }
 
     await this.uploadRepository.update(jobId, updates);
+  }
+
+  private async getCsvInfo(filePath: string): Promise<{ headers: string[]; totalRecords: number }> {
+    return new Promise((resolve, reject) => {
+      const headers: string[] = [];
+      let totalRecords = 0;
+      let headerProcessed = false;
+
+      createReadStream(filePath)
+        .pipe(parse({
+          delimiter: '',
+          auto_parse: false,
+          skip_empty_lines: true,
+        }))
+        .on('data', (row) => {
+          if (!headerProcessed) {
+            headers.push(...row);
+            headerProcessed = true;
+          } else {
+            totalRecords++;
+          }
+        })
+        .on('end', () => {
+          resolve({ headers, totalRecords });
+        })
+        .on('error', (error) => {
+          reject(new AppError('Failed to parse CSV file', 400, error));
+        });
+    });
   }
 }

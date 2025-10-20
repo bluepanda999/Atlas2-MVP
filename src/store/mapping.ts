@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { FieldMapping, TransformationRule, ApiField, CsvRow } from '../types';
-import { apiService } from '../services/api';
+import { apiService, mappingService } from '../services/api';
 
 interface MappingStore {
   csvHeaders: string[];
@@ -13,7 +13,7 @@ interface MappingStore {
   
   setCsvData: (headers: string[], data: CsvRow[]) => void;
   setApiFields: (fields: ApiField[]) => void;
-  setMappings: (mappings: FieldMapping[]) => void;
+  setMappings: (mappings: Partial<FieldMapping>[]) => void;
   addTransformationRule: (rule: Omit<TransformationRule, 'id'>) => void;
   updateTransformationRule: (ruleId: string, updates: Partial<TransformationRule>) => void;
   deleteTransformationRule: (ruleId: string) => void;
@@ -40,7 +40,7 @@ export const useMappingStore = create<MappingStore>()(
         });
         
         // Auto-generate mappings based on header names
-        const autoMappings: FieldMapping[] = headers.map(header => ({
+        const autoMappings: Partial<FieldMapping>[] = headers.map(header => ({
           id: `mapping-${header}`,
           csvHeader: header,
           apiFieldId: '',
@@ -56,8 +56,8 @@ export const useMappingStore = create<MappingStore>()(
         
         // Update existing mappings with API field names
         const { mappings } = get();
-        const updatedMappings = mappings.map(mapping => {
-          const apiField = fields.find(f => f.id === mapping.apiFieldId);
+        const updatedMappings = mappings.map((mapping: any) => {
+          const apiField = fields.find((f: any) => f.id === mapping.apiFieldId);
           return {
             ...mapping,
             apiFieldName: apiField?.name || '',
@@ -68,10 +68,10 @@ export const useMappingStore = create<MappingStore>()(
         set({ mappings: updatedMappings });
       },
 
-      setMappings: (newMappings: FieldMapping[]) => {
+      setMappings: (newMappings: Partial<FieldMapping>[]) => {
         const { apiFields } = get();
-        const updatedMappings = newMappings.map(mapping => {
-          const apiField = apiFields.find(f => f.id === mapping.apiFieldId);
+        const updatedMappings = newMappings.map((mapping: any) => {
+          const apiField = apiFields.find((f: any) => f.id === mapping.apiFieldId);
           return {
             ...mapping,
             apiFieldName: apiField?.name || '',
@@ -88,22 +88,22 @@ export const useMappingStore = create<MappingStore>()(
           id: `rule-${Date.now()}`,
         };
         
-        set(state => ({
+        set((state: any) => ({
           transformationRules: [...state.transformationRules, newRule],
         }));
       },
 
       updateTransformationRule: (ruleId: string, updates: Partial<TransformationRule>) => {
-        set(state => ({
-          transformationRules: state.transformationRules.map(rule =>
+        set((state: any) => ({
+          transformationRules: state.transformationRules.map((rule: any) =>
             rule.id === ruleId ? { ...rule, ...updates } : rule
           ),
         }));
       },
 
       deleteTransformationRule: (ruleId: string) => {
-        set(state => ({
-          transformationRules: state.transformationRules.filter(rule => rule.id !== ruleId),
+        set((state: any) => ({
+          transformationRules: state.transformationRules.filter((rule: any) => rule.id !== ruleId),
         }));
       },
 
@@ -112,7 +112,8 @@ export const useMappingStore = create<MappingStore>()(
         set({ isLoading: true });
         
         try {
-          await apiService.mapping.saveMapping({
+          await mappingService.createMapping({
+            name: 'New Mapping',
             mappings,
             transformationRules,
           });
@@ -127,10 +128,10 @@ export const useMappingStore = create<MappingStore>()(
         set({ isLoading: true });
         
         try {
-          const mapping = await apiService.mapping.getMapping(mappingId);
+          const mapping = await mappingService.getMapping(mappingId) as any;
           set({
-            mappings: mapping.mappings,
-            transformationRules: mapping.transformationRules,
+            mappings: mapping.mappings || [],
+            transformationRules: mapping.transformationRules || [],
             isLoading: false,
           });
         } catch (error) {
@@ -143,9 +144,9 @@ export const useMappingStore = create<MappingStore>()(
         set({ isLoading: true });
         
         try {
-          const fields = await apiService.integrations.getApiFields(apiConfigId);
+          const config = await apiService.getApiConfiguration(apiConfigId);
           set({
-            apiFields: fields,
+            apiFields: (config as any)?.fields || [],
             isLoading: false,
           });
         } catch (error) {
@@ -165,7 +166,7 @@ export const useMappingStore = create<MappingStore>()(
     }),
     {
       name: 'mapping-storage',
-      partialize: (state) => ({
+      partialize: (state: any) => ({
         csvHeaders: state.csvHeaders,
         csvData: state.csvData.slice(0, 10), // Only persist first 10 rows
         mappings: state.mappings,

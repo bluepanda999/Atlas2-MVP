@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { ProcessingJob } from '../types';
-import { apiService } from '../services/api';
+import { ProcessingJob, ProcessingStatus } from '../types';
+import { uploadService } from '../services/api';
 
 interface UploadStore {
   currentJob: ProcessingJob | null;
@@ -24,7 +24,7 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
   uploadFile: async (file: File) => {
     set({ isLoading: true });
     try {
-      const job = await apiService.upload.uploadFile(file);
+      const job = await uploadService.uploadFile(file) as ProcessingJob;
       set({
         currentJob: job,
         isLoading: false,
@@ -53,11 +53,11 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
 
   cancelJob: async (jobId: string) => {
     try {
-      await apiService.upload.cancelJob(jobId);
+      await uploadService.cancelUpload(jobId);
       const { currentJob } = get();
       if (currentJob && currentJob.id === jobId) {
         set({
-          currentJob: { ...currentJob, status: 'failed' as const },
+          currentJob: { ...currentJob, status: ProcessingStatus.FAILED },
         });
       }
       await get().fetchUploadHistory();
@@ -67,11 +67,10 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
     }
   },
 
-  retryJob: async (jobId: string) => {
+  retryJob: async (_jobId: string) => {
     try {
-      const job = await apiService.upload.retryJob(jobId);
-      set({ currentJob: job });
-      await get().fetchUploadHistory();
+      // Note: retryJob would need to be implemented in UploadService
+      throw new Error('Retry job not implemented');
     } catch (error) {
       console.error('Error retrying job:', error);
       throw error;
@@ -80,7 +79,7 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
 
   deleteJob: async (jobId: string) => {
     try {
-      await apiService.upload.deleteJob(jobId);
+      await uploadService.deleteUpload(jobId);
       const { currentJob, uploadHistory } = get();
       
       if (currentJob && currentJob.id === jobId) {
@@ -98,7 +97,7 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
 
   fetchJobStatus: async (jobId: string) => {
     try {
-      const job = await apiService.upload.getJobStatus(jobId);
+      const job = await uploadService.getUploadProgress(jobId) as ProcessingJob;
       const { currentJob } = get();
       
       if (currentJob && currentJob.id === jobId) {
@@ -120,9 +119,9 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
   fetchUploadHistory: async () => {
     set({ isLoading: true });
     try {
-      const jobs = await apiService.upload.getUploadHistory();
+      const response = await uploadService.getUploads();
       set({
-        uploadHistory: jobs,
+        uploadHistory: (response as any)?.data || [],
         isLoading: false,
       });
     } catch (error) {

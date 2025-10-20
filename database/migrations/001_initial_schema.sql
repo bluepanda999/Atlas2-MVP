@@ -1,6 +1,7 @@
 -- Initial schema for Atlas2 application
 -- Migration: 001_initial_schema
 -- Created: 2024-01-01
+-- Updated: Fixed table dependency order
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -12,6 +13,7 @@ CREATE TYPE integration_type AS ENUM ('rest_api', 'webhook', 'database');
 CREATE TYPE auth_type AS ENUM ('api_key', 'bearer_token', 'basic_auth', 'oauth2');
 CREATE TYPE rule_type AS ENUM ('format', 'validation', 'transformation', 'lookup');
 
+-- Core tables (no dependencies)
 -- Users table
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -26,7 +28,50 @@ CREATE TABLE users (
     last_logout_at TIMESTAMP WITH TIME ZONE
 );
 
--- Processing jobs table
+-- API configurations table (depends only on users)
+CREATE TABLE api_configurations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    type integration_type NOT NULL,
+    base_url VARCHAR(500) NOT NULL,
+    auth_type auth_type NOT NULL,
+    auth_config JSONB NOT NULL DEFAULT '{}',
+    headers JSONB NOT NULL DEFAULT '{}',
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- API fields table (depends on api_configurations)
+CREATE TABLE api_fields (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    api_config_id UUID NOT NULL REFERENCES api_configurations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    description TEXT,
+    required BOOLEAN NOT NULL DEFAULT false,
+    format VARCHAR(100),
+    validation_rules JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    UNIQUE(api_config_id, name)
+);
+
+-- Mapping configurations table (depends on users and api_configurations)
+CREATE TABLE mapping_configurations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    api_config_id UUID REFERENCES api_configurations(id) ON DELETE SET NULL,
+    mappings JSONB NOT NULL DEFAULT '[]',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Processing jobs table (depends on users and mapping_configurations)
 CREATE TABLE processing_jobs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -45,58 +90,31 @@ CREATE TABLE processing_jobs (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
+-- Dependent tables (depend on processing_jobs)
 -- File data table (stores actual CSV content)
 CREATE TABLE file_data (
     job_id UUID PRIMARY KEY REFERENCES processing_jobs(id) ON DELETE CASCADE,
-    data TEXT NOT NULL,
+    content TEXT NOT NULL,
+    checksum VARCHAR(64),
+    compressed BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Processing results table (stores results of processed jobs)
+CREATE TABLE processing_results (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    job_id UUID NOT NULL REFERENCES processing_jobs(id) ON DELETE CASCADE,
+    row_number INTEGER NOT NULL,
+    input_data JSONB NOT NULL,
+    output_data JSONB,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    error_message TEXT,
+    processing_time INTEGER, -- in milliseconds
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- API configurations table
-CREATE TABLE api_configurations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    type integration_type NOT NULL,
-    base_url VARCHAR(500) NOT NULL,
-    auth_type auth_type NOT NULL,
-    auth_config JSONB NOT NULL DEFAULT '{}',
-    headers JSONB NOT NULL DEFAULT '{}',
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
--- API fields table (defines expected fields for an API)
-CREATE TABLE api_fields (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    api_config_id UUID NOT NULL REFERENCES api_configurations(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    type VARCHAR(50) NOT NULL,
-    description TEXT,
-    required BOOLEAN NOT NULL DEFAULT false,
-    format VARCHAR(100),
-    validation_rules JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    UNIQUE(api_config_id, name)
-);
-
--- Mapping configurations table
-CREATE TABLE mapping_configurations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    api_config_id UUID REFERENCES api_configurations(id) ON DELETE SET NULL,
-    mappings JSONB NOT NULL DEFAULT '[]',
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
--- Transformation rules table
+-- Transformation rules table (depends on mapping_configurations)
 CREATE TABLE transformation_rules (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     mapping_id UUID NOT NULL REFERENCES mapping_configurations(id) ON DELETE CASCADE,
@@ -110,20 +128,7 @@ CREATE TABLE transformation_rules (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Processing results table (stores results of processed jobs)
-CREATE TABLE processing_results (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    job_id UUID NOT NULL REFERENCES processing_jobs(id) ON DELETE CASCADE,
-    row_number INTEGER NOT NULL,
-    input_data JSONB NOT NULL,
-    output_data JSONB,
-    status VARCHAR(20) NOT NULL DEFAULT 'pending',
-    error_message TEXT,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
--- Audit log table
+-- Audit log table (depends on users)
 CREATE TABLE audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -137,7 +142,7 @@ CREATE TABLE audit_logs (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- System settings table
+-- System settings table (no dependencies)
 CREATE TABLE system_settings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     key VARCHAR(255) UNIQUE NOT NULL,
@@ -201,9 +206,6 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
 CREATE TRIGGER update_processing_jobs_updated_at BEFORE UPDATE ON processing_jobs
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_file_data_updated_at BEFORE UPDATE ON file_data
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 CREATE TRIGGER update_api_configurations_updated_at BEFORE UPDATE ON api_configurations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -224,12 +226,14 @@ CREATE TRIGGER update_system_settings_updated_at BEFORE UPDATE ON system_setting
 
 -- Insert default system settings
 INSERT INTO system_settings (key, value, description, is_public) VALUES
-('max_file_size', '52428800', 'Maximum file size in bytes (50MB)', true),
-('allowed_file_types', '["text/csv"]', 'Allowed file types for upload', true),
+('max_file_size', '3221225472', 'Maximum file size in bytes (3GB)', true),
+('allowed_file_types', '["text/csv", "application/vnd.ms-excel"]', 'Allowed file types for upload', true),
 ('max_concurrent_jobs', '5', 'Maximum concurrent processing jobs per user', true),
-('job_timeout', '1800', 'Job timeout in seconds (30 minutes)', true),
+('job_timeout', '3600', 'Job timeout in seconds (1 hour)', true),
 ('default_batch_size', '1000', 'Default batch size for CSV processing', false),
-('enable_audit_logging', 'true', 'Enable audit logging', false);
+('enable_audit_logging', 'true', 'Enable audit logging', false),
+('chunk_size', '1048576', 'File chunk size for streaming (1MB)', false),
+('max_memory_usage', '524288000', 'Maximum memory usage per job (500MB)', false);
 
 -- Create a default admin user (password: admin123)
 -- Note: In production, this should be created through a secure process
@@ -237,7 +241,7 @@ INSERT INTO users (email, password, name, role) VALUES
 ('admin@atlas2.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6hsxq9w5GS', 'System Administrator', 'admin');
 
 -- Create view for job statistics
-CREATE VIEW job_statistics AS
+CREATE VIEW user_dashboard_stats AS
 SELECT 
     u.id as user_id,
     u.name as user_name,

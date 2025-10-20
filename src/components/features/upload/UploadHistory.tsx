@@ -19,22 +19,23 @@ const UploadHistory: React.FC<UploadHistoryProps> = ({
   className,
 }) => {
   const getStatusBadge = (status: ProcessingJob['status']) => {
-    const styles = {
+    const styles: Record<string, string> = {
       pending: 'bg-yellow-100 text-yellow-800',
       processing: 'bg-blue-100 text-blue-800',
       completed: 'bg-green-100 text-green-800',
       failed: 'bg-red-100 text-red-800',
+      cancelled: 'bg-gray-100 text-gray-800',
     };
 
     return (
-      <span className={cn('inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', styles[status])}>
+      <span className={cn('inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', styles[status] || 'bg-gray-100 text-gray-800')}>
         {status}
       </span>
     );
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
+  const formatDate = (date: string | Date) => {
+    return new Date(date).toLocaleString();
   };
 
   const formatFileSize = (bytes: number) => {
@@ -82,7 +83,7 @@ const UploadHistory: React.FC<UploadHistoryProps> = ({
                     <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
                       <span>{formatFileSize(job.fileSize)}</span>
                       <span>{formatDate(job.createdAt)}</span>
-                      {job.recordsProcessed > 0 && (
+                      {job.recordsProcessed && job.recordsProcessed > 0 && (
                         <span>{job.recordsProcessed.toLocaleString()} records</span>
                       )}
                     </div>

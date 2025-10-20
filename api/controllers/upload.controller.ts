@@ -1,13 +1,27 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
+import path from 'path';
+import fs from 'fs/promises';
 import { UploadService } from '../services/upload.service';
 import { ApiResponse } from '../types/api';
 import { ProcessingJob } from '../types/upload';
 
+// Ensure upload directory exists
+const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+fs.mkdir(UPLOAD_DIR, { recursive: true }).catch(console.error);
+
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, UPLOAD_DIR);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, `${uniqueSuffix}-${file.originalname}`);
+    }
+  }),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB
+    fileSize: 3 * 1024 * 1024 * 1024, // 3GB
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
@@ -33,7 +47,7 @@ export class UploadController {
       }
 
       const job: ProcessingJob = await this.uploadService.uploadFile(
-        req.file.buffer,
+        req.file.path,
         req.file.originalname,
         req.file.size,
         userId

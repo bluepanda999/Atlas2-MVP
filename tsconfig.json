@@ -26,5 +26,15 @@
     }
   },
   "include": ["src"],
+  "exclude": [
+    "src/controllers",
+    "src/dto",
+    "src/entities",
+    "src/guards",
+    "src/modules",
+    "src/middleware",
+    "src/repositories",
+    "src/interfaces"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

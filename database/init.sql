@@ -12,17 +12,21 @@
 -- \i migrations/002_add_indexes_and_constraints.sql
 
 -- Create additional indexes for performance optimization
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processing_jobs_composite_search 
+-- Note: Using regular CREATE INDEX instead of CONCURRENTLY for initialization
+CREATE INDEX IF NOT EXISTS idx_processing_jobs_composite_search 
 ON processing_jobs(user_id, status, created_at DESC);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_api_fields_composite 
+CREATE INDEX IF NOT EXISTS idx_api_fields_composite 
 ON api_fields(api_config_id, required, name);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transformation_rules_composite 
+CREATE INDEX IF NOT EXISTS idx_transformation_rules_composite 
 ON transformation_rules(mapping_id, enabled, type);
 
 -- Create materialized views for reporting
-CREATE MATERIALIZED VIEW IF NOT EXISTS user_dashboard_stats AS
+-- Drop existing view if it exists to avoid conflicts
+DROP VIEW IF EXISTS user_dashboard_stats;
+
+CREATE MATERIALIZED VIEW user_dashboard_stats AS
 SELECT 
     u.id as user_id,
     u.name as user_name,
@@ -91,94 +95,128 @@ RETURNS TABLE(
     old_jobs_deleted INTEGER
 ) AS $$
 DECLARE
-    audit_retention_days INTEGER;
-    results_retention_days INTEGER;
-    jobs_retention_days INTEGER;
-    audit_deleted INTEGER;
-    results_deleted INTEGER;
-    jobs_deleted INTEGER;
+    audit_retention_days INTEGER := 90;
+    results_retention_days INTEGER := 30;
+    jobs_retention_days INTEGER := 365;
+    audit_deleted INTEGER := 0;
+    results_deleted INTEGER := 0;
+    jobs_deleted INTEGER := 0;
 BEGIN
-    -- Get retention periods from system settings
-    SELECT COALESCE((value::text::integer), 90) INTO audit_retention_days 
-    FROM system_settings WHERE key = 'audit_log_retention_days';
+    -- Get retention periods from system settings if available
+    BEGIN
+        SELECT COALESCE((value::text::integer), 90) INTO audit_retention_days 
+        FROM system_settings WHERE key = 'audit_log_retention_days';
+    EXCEPTION WHEN OTHERS THEN
+        audit_retention_days := 90;
+    END;
     
-    SELECT COALESCE((value::text::integer), 30) INTO results_retention_days 
-    FROM system_settings WHERE key = 'processing_results_retention_days';
+    BEGIN
+        SELECT COALESCE((value::text::integer), 30) INTO results_retention_days 
+        FROM system_settings WHERE key = 'processing_results_retention_days';
+    EXCEPTION WHEN OTHERS THEN
+        results_retention_days := 30;
+    END;
     
-    SELECT COALESCE((value::text::integer), 365) INTO jobs_retention_days 
-    FROM system_settings WHERE key = 'jobs_retention_days';
+    BEGIN
+        SELECT COALESCE((value::text::integer), 365) INTO jobs_retention_days 
+        FROM system_settings WHERE key = 'jobs_retention_days';
+    EXCEPTION WHEN OTHERS THEN
+        jobs_retention_days := 365;
+    END;
     
-    -- Clean up old audit logs
-    DELETE FROM audit_logs 
-    WHERE created_at < NOW() - INTERVAL '1 day' * audit_retention_days;
-    GET DIAGNOSTICS audit_deleted = ROW_COUNT;
+    -- Clean up old audit logs if table exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_logs') THEN
+        DELETE FROM audit_logs 
+        WHERE created_at < NOW() - INTERVAL '1 day' * audit_retention_days;
+        GET DIAGNOSTICS audit_deleted = ROW_COUNT;
+    END IF;
     
-    -- Clean up old processing results
-    DELETE FROM processing_results 
-    WHERE created_at < NOW() - INTERVAL '1 day' * results_retention_days;
-    GET DIAGNOSTICS results_deleted = ROW_COUNT;
+    -- Clean up old processing results if table exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'processing_results') THEN
+        DELETE FROM processing_results 
+        WHERE created_at < NOW() - INTERVAL '1 day' * results_retention_days;
+        GET DIAGNOSTICS results_deleted = ROW_COUNT;
+    END IF;
     
-    -- Clean up old completed jobs (keep failed jobs longer for debugging)
-    DELETE FROM processing_jobs 
-    WHERE status = 'completed' 
-    AND created_at < NOW() - INTERVAL '1 day' * jobs_retention_days;
-    GET DIAGNOSTICS jobs_deleted = ROW_COUNT;
-    
-    -- Clean up associated file data
-    DELETE FROM file_data 
-    WHERE job_id NOT IN (SELECT id FROM processing_jobs);
+    -- Clean up old completed jobs if table exists (keep failed jobs longer for debugging)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'processing_jobs') THEN
+        DELETE FROM processing_jobs 
+        WHERE status = 'completed' 
+        AND created_at < NOW() - INTERVAL '1 day' * jobs_retention_days;
+        GET DIAGNOSTICS jobs_deleted = ROW_COUNT;
+        
+        -- Clean up associated file data if table exists
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'file_data') THEN
+            DELETE FROM file_data 
+            WHERE job_id NOT IN (SELECT id FROM processing_jobs);
+        END IF;
+    END IF;
     
     RETURN QUERY SELECT audit_deleted, results_deleted, jobs_deleted;
 END;
 $$ LANGUAGE plpgsql;
 
--- Insert additional system settings
-INSERT INTO system_settings (key, value, description, is_public) VALUES
-('audit_log_retention_days', '90', 'Retention period for audit logs in days', false),
-('processing_results_retention_days', '30', 'Retention period for processing results in days', false),
-('jobs_retention_days', '365', 'Retention period for completed jobs in days', false),
-('max_concurrent_jobs_per_user', '5', 'Maximum concurrent jobs per user', true),
-('api_rate_limit_per_minute', '60', 'API rate limit per minute per user', true),
-('enable_file_compression', 'true', 'Enable file compression for storage', false),
-('default_csv_delimiter', ',', 'Default CSV delimiter', false),
-('max_csv_rows', '1000000', 'Maximum number of rows in CSV file', true),
-('enable_real_time_processing', 'true', 'Enable real-time processing updates', false),
-('notification_email_enabled', 'true', 'Enable email notifications', false)
-ON CONFLICT (key) DO NOTHING;
+-- Insert additional system settings (only if table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'system_settings') THEN
+        INSERT INTO system_settings (key, value, description, is_public) VALUES
+        ('audit_log_retention_days', '90', 'Retention period for audit logs in days', false),
+        ('processing_results_retention_days', '30', 'Retention period for processing results in days', false),
+        ('jobs_retention_days', '365', 'Retention period for completed jobs in days', false),
+        ('max_concurrent_jobs_per_user', '5', 'Maximum concurrent jobs per user', true),
+        ('api_rate_limit_per_minute', '60', 'API rate limit per minute per user', true),
+        ('enable_file_compression', 'true', 'Enable file compression for storage', false),
+        ('default_csv_delimiter', '","', 'Default CSV delimiter', false),
+        ('max_csv_rows', '1000000', 'Maximum number of rows in CSV file', true),
+        ('enable_real_time_processing', 'true', 'Enable real-time processing updates', false),
+        ('notification_email_enabled', 'true', 'Enable email notifications', false),
+        ('environment', '"development"', 'Current environment', false)
+        ON CONFLICT (key) DO NOTHING;
+    END IF;
+END $$;
 
 -- Create sample data for development (only in non-production environments)
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM system_settings WHERE key = 'environment' AND value = '"development"') THEN
-        -- Create sample user
-        INSERT INTO users (email, password, name, role) VALUES
-        ('demo@atlas2.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6hsxq9w5GS', 'Demo User', 'user')
-        ON CONFLICT (email) DO NOTHING;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'system_settings') AND
+       EXISTS (SELECT 1 FROM system_settings WHERE key = 'environment' AND value = '"development"') THEN
         
-        -- Create sample API configuration
-        INSERT INTO api_configurations (user_id, name, description, type, base_url, auth_type, auth_config) VALUES
-        ((SELECT id FROM users WHERE email = 'demo@atlas2.com'), 'Sample CRM API', 'Sample CRM integration for testing', 'rest_api', 'https://api.crm.example.com', 'api_key', '{"api_key": "sample_key"}')
-        ON CONFLICT DO NOTHING;
-        
-        -- Create sample mapping configuration
-        INSERT INTO mapping_configurations (user_id, name, description, mappings) VALUES
-        ((SELECT id FROM users WHERE email = 'demo@atlas2.com'), 'Customer Import Mapping', 'Mapping for customer data import', '[
-            {
-                "id": "mapping-1",
-                "csvHeader": "Name",
-                "apiFieldId": "1",
-                "apiFieldName": "fullName",
-                "required": true
-            },
-            {
-                "id": "mapping-2", 
-                "csvHeader": "Email",
-                "apiFieldId": "2",
-                "apiFieldName": "emailAddress",
-                "required": true
-            }
-        ]')
-        ON CONFLICT DO NOTHING;
+        -- Create sample user if users table exists
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+            INSERT INTO users (email, password, name, role) VALUES
+            ('demo@atlas2.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6hsxq9w5GS', 'Demo User', 'user')
+            ON CONFLICT (email) DO NOTHING;
+            
+            -- Create sample API configuration if tables exist
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'api_configurations') THEN
+                INSERT INTO api_configurations (user_id, name, description, type, base_url, auth_type, auth_config) VALUES
+                ((SELECT id FROM users WHERE email = 'demo@atlas2.com'), 'Sample CRM API', 'Sample CRM integration for testing', 'rest_api', 'https://api.crm.example.com', 'api_key', '{"api_key": "sample_key"}')
+                ON CONFLICT DO NOTHING;
+            END IF;
+            
+            -- Create sample mapping configuration if tables exist
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'mapping_configurations') THEN
+                INSERT INTO mapping_configurations (user_id, name, description, mappings) VALUES
+                ((SELECT id FROM users WHERE email = 'demo@atlas2.com'), 'Customer Import Mapping', 'Mapping for customer data import', '[
+                    {
+                        "id": "mapping-1",
+                        "csvHeader": "Name",
+                        "apiFieldId": "1",
+                        "apiFieldName": "fullName",
+                        "required": true
+                    },
+                    {
+                        "id": "mapping-2", 
+                        "csvHeader": "Email",
+                        "apiFieldId": "2",
+                        "apiFieldName": "emailAddress",
+                        "required": true
+                    }
+                ]')
+                ON CONFLICT DO NOTHING;
+            END IF;
+        END IF;
     END IF;
 END $$;
 
@@ -187,7 +225,8 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'atlas2_app') THEN
         CREATE ROLE atlas2_app WITH LOGIN PASSWORD 'secure_password_here';
-        GRANT CONNECT ON DATABASE atlas2 TO atlas2_app;
+        -- Grant permissions on current database
+        EXECUTE format('GRANT CONNECT ON DATABASE %I TO atlas2_app', current_database());
         GRANT USAGE ON SCHEMA public TO atlas2_app;
         GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO atlas2_app;
         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO atlas2_app;
@@ -201,7 +240,8 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'atlas2_readonly') THEN
         CREATE ROLE atlas2_readonly WITH LOGIN PASSWORD 'readonly_password_here';
-        GRANT CONNECT ON DATABASE atlas2 TO atlas2_readonly;
+        -- Grant permissions on current database
+        EXECUTE format('GRANT CONNECT ON DATABASE %I TO atlas2_readonly', current_database());
         GRANT USAGE ON SCHEMA public TO atlas2_readonly;
         GRANT SELECT ON ALL TABLES IN SCHEMA public TO atlas2_readonly;
         ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO atlas2_readonly;
@@ -239,7 +279,12 @@ BEGIN
     RAISE NOTICE '- Sample data created (development mode)';
 END $$;
 
--- Set database version
-INSERT INTO system_settings (key, value, description, is_public) VALUES
-('database_version', '"1.0.0"', 'Database schema version', false)
-ON CONFLICT (key) DO UPDATE SET value = '"1.0.0"';
+-- Set database version (only if table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'system_settings') THEN
+        INSERT INTO system_settings (key, value, description, is_public) VALUES
+        ('database_version', '"1.0.0"', 'Database schema version', false)
+        ON CONFLICT (key) DO UPDATE SET value = '"1.0.0"';
+    END IF;
+END $$;

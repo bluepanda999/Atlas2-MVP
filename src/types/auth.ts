@@ -3,6 +3,7 @@ import { BaseEntity } from './common';
 export interface User extends BaseEntity {
   username: string;
   email: string;
+  name: string;
   role: UserRole;
   isActive: boolean;
   lastLoginAt?: Date;

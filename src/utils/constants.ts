@@ -9,15 +9,15 @@ export const APP_CONFIG = {
 } as const;
 
 export const API_CONFIG = {
-  baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001',
-  timeout: parseInt(import.meta.env.VITE_API_TIMEOUT || '30000'),
+  baseUrl: (import.meta.env?.VITE_API_BASE_URL as string) || 'http://localhost:3001',
+  timeout: parseInt((import.meta.env?.VITE_API_TIMEOUT as string) || '30000'),
   retryAttempts: 3,
   retryDelay: 1000,
 } as const;
 
 export const UPLOAD_CONFIG = {
-  maxFileSize: parseInt(import.meta.env.VITE_MAX_FILE_SIZE || '3221225472'), // 3GB
-  chunkSize: parseInt(import.meta.env.VITE_CHUNK_SIZE || '65536'), // 64KB
+  maxFileSize: parseInt((import.meta.env?.VITE_MAX_FILE_SIZE as string) || '3221225472'), // 3GB
+  chunkSize: parseInt((import.meta.env?.VITE_CHUNK_SIZE as string) || '65536'), // 64KB
   supportedFormats: ['text/csv', 'application/csv', '.csv'],
   maxRetries: 3,
   retryDelay: 2000,

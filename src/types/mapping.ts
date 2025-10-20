@@ -8,7 +8,14 @@ export interface FieldMapping extends BaseEntity {
   mappingConfig: MappingConfiguration;
   isActive: boolean;
   lastUsedAt?: Date;
+  // Additional properties for compatibility
+  csvHeader?: string;
+  required?: boolean;
+  apiFieldId?: string;
+  apiFieldName?: string;
 }
+
+export type CsvRow = Record<string, any>;
 
 export interface MappingConfiguration {
   sourceFields: SourceField[];
@@ -51,6 +58,9 @@ export interface TransformationRule {
   type: TransformationType;
   config: TransformationConfig;
   description?: string;
+  sourceField?: string;
+  targetField?: string;
+  enabled?: boolean;
 }
 
 export enum TransformationType {
@@ -61,7 +71,10 @@ export enum TransformationType {
   FORMAT_NUMBER = 'format_number',
   LOOKUP = 'lookup',
   CONDITIONAL = 'conditional',
-  CUSTOM = 'custom'
+  CUSTOM = 'custom',
+  FORMAT = 'format',
+  VALIDATION = 'validation',
+  TRANSFORMATION = 'transformation'
 }
 
 export interface TransformationConfig {

@@ -1,0 +1,39 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "src/**/*",
+    "!src/controllers",
+    "!src/dto", 
+    "!src/entities",
+    "!src/guards",
+    "!src/modules",
+    "!src/middleware",
+    "!src/repositories",
+    "!src/interfaces",
+    "!src/services/**/*.service.ts",
+    "!src/**/*.controller.ts",
+    "!src/**/*.dto.ts",
+    "!src/**/*.entity.ts",
+    "!src/**/*.guard.ts",
+    "!src/**/*.middleware.ts"
+  ],
+  "exclude": [
+    "src/controllers",
+    "src/dto",
+    "src/entities",
+    "src/guards",
+    "src/modules",
+    "src/middleware",
+    "src/repositories",
+    "src/interfaces",
+    "src/services/**/*.service.ts",
+    "src/**/*.controller.ts",
+    "src/**/*.dto.ts",
+    "src/**/*.entity.ts",
+    "src/**/*.guard.ts",
+    "src/**/*.middleware.ts"
+  ]
+}

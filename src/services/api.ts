@@ -306,6 +306,14 @@ export class MappingService {
 }
 
 export class ApiService {
+  setAuthToken(token: string) {
+    storage.set(STORAGE_KEYS.authToken, token);
+  }
+
+  clearAuthToken() {
+    storage.remove(STORAGE_KEYS.authToken);
+  }
+
   async createApiConfiguration(configData: any) {
     return apiClient.post('/api/apis', configData);
   }
@@ -411,8 +419,7 @@ export const apiService = new ApiService();
 export const transformationService = new TransformationService();
 export const monitoringService = new MonitoringService();
 
-// Export API client for custom requests
-export { apiClient };
+// API client is already exported above (line 195)
 
 // Export types
 export type { ApiClientConfig };

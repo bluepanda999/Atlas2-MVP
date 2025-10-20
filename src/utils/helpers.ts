@@ -1,5 +1,6 @@
 import { format, parseISO, isValid } from 'date-fns';
-import { FIELD_TYPES, TRANSFORMATION_TYPES, AUTH_TYPES } from './constants';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 // Date utilities
 export const formatDate = (date: Date | string, formatStr = 'MMM dd, yyyy'): string => {
@@ -164,7 +165,7 @@ export const isCsvFile = (filename: string, mimeType?: string): boolean => {
   const validMimeTypes = ['text/csv', 'application/csv'];
   
   return validExtensions.includes(extension) || 
-         (mimeType && validMimeTypes.includes(mimeType));
+         !!(mimeType && validMimeTypes.includes(mimeType));
 };
 
 export const generateFileName = (originalName: string, suffix?: string): string => {
@@ -284,6 +285,11 @@ export const storage = {
       console.error('Failed to clear localStorage:', error);
     }
   }
+};
+
+// CSS utilities
+export const cn = (...inputs: ClassValue[]) => {
+  return twMerge(clsx(inputs));
 };
 
 // URL utilities

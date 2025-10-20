@@ -125,7 +125,7 @@ const UploadProgress: React.FC<UploadProgressProps> = ({
       <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
           <span className="text-gray-500">Records Processed:</span>
-          <span className="ml-2 font-medium">{job.recordsProcessed.toLocaleString()}</span>
+          <span className="ml-2 font-medium">{job.recordsProcessed?.toLocaleString() || '0'}</span>
         </div>
         <div>
           <span className="text-gray-500">Total Records:</span>

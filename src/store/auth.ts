@@ -1,10 +1,16 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, AuthState } from '../types';
-import { apiService } from '../services/api';
+import { User } from '../types';
+import { authService } from '../services/api';
 
-interface AuthStore extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
+interface AuthStore {
+  user: User | null;
+  token: string | null;
+  refreshTokenValue: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
@@ -12,16 +18,17 @@ interface AuthStore extends AuthState {
 
 export const useAuthStore = create<AuthStore>()(
   persist(
-    (set, get) => ({
+    (set: any, get: any) => ({
       user: null,
       token: null,
+      refreshTokenValue: null,
       isAuthenticated: false,
       isLoading: false,
 
       login: async (email: string, password: string) => {
         set({ isLoading: true });
         try {
-          const response = await apiService.auth.login({ email, password });
+          const response = await authService.login({ username, password }) as any;
           set({
             user: response.user,
             token: response.token,
@@ -44,11 +51,12 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       refreshToken: async () => {
-        const { token } = get();
+        const { token, refreshTokenValue } = get();
+        if (!refreshTokenValue) return;
         if (!token) return;
 
         try {
-          const response = await apiService.auth.refreshToken();
+          const response = await authService.refreshToken(refreshTokenValue) as any;
           set({
             user: response.user,
             token: response.token,
@@ -66,7 +74,7 @@ export const useAuthStore = create<AuthStore>()(
 
         set({ isLoading: true });
         try {
-          const updatedUser = await apiService.auth.updateProfile(updates);
+          const updatedUser = await authService.updateProfile(updates);
           set({
             user: updatedUser,
             isLoading: false,
@@ -79,9 +87,10 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({
+      partialize: (state: any) => ({
         user: state.user,
         token: state.token,
+        refreshTokenValue: state.refreshTokenValue,
         isAuthenticated: state.isAuthenticated,
       }),
     }

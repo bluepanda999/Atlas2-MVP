@@ -27,7 +27,7 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
   const currentRows = csvData.slice(startIndex, endIndex);
 
   const getMappedValue = (row: CsvRow, mapping: FieldMapping) => {
-    return row[mapping.csvHeader] || '';
+    return row[mapping.csvHeader || ''] || '';
   };
 
   const getRequiredMappings = () => mappings.filter(m => m.required);

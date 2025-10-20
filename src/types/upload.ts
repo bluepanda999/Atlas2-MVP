@@ -31,6 +31,15 @@ export enum ProcessingStatus {
   CANCELLED = 'cancelled'
 }
 
+// For backward compatibility
+export const ProcessingStatusCompat = {
+  pending: 'pending' as const,
+  processing: 'processing' as const,
+  completed: 'completed' as const,
+  failed: 'failed' as const,
+  cancelled: 'cancelled' as const
+};
+
 export interface FileMetadata {
   delimiter?: string;
   encoding?: string;
@@ -51,15 +60,21 @@ export interface UploadProgress {
 
 export interface ProcessingJob extends BaseEntity {
   fileUploadId: string;
-  jobStatus: ProcessingStatus;
+  fileName: string;
+  fileSize: number;
+  status: ProcessingStatus;
   progress: number;
   totalRows?: number;
+  totalRecords?: number;
   processedRows?: number;
+  recordsProcessed?: number;
   errorCount?: number;
   errorMessage?: string;
   startedAt?: Date;
   completedAt?: Date;
   workerId?: string;
+  processingTime?: number; // in seconds
+  estimatedTimeRemaining?: number; // in seconds
 }
 
 export interface UploadRequest {

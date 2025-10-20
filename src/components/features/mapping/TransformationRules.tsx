@@ -1,6 +1,6 @@
 import React from 'react';
-import { TransformationRule } from '../../../types';
-import { Button, Input } from '../../common';
+import { TransformationRule, TransformationType } from '../../../types';
+import { Button } from '../../common';
 import { cn } from '../../../utils/helpers';
 
 export interface TransformationRulesProps {
@@ -20,13 +20,13 @@ const TransformationRules: React.FC<TransformationRulesProps> = ({
 }) => {
   const getRuleTypeDescription = (type: TransformationRule['type']) => {
     switch (type) {
-      case 'format':
+      case TransformationType.FORMAT:
         return 'Format data (e.g., date format, phone number)';
-      case 'validation':
+      case TransformationType.VALIDATION:
         return 'Validate data (e.g., email format, required fields)';
-      case 'transformation':
+      case TransformationType.TRANSFORMATION:
         return 'Transform data (e.g., uppercase, lowercase, trim)';
-      case 'lookup':
+      case TransformationType.LOOKUP:
         return 'Lookup values from external source';
       default:
         return 'Unknown rule type';
@@ -35,25 +35,25 @@ const TransformationRules: React.FC<TransformationRulesProps> = ({
 
   const getRuleIcon = (type: TransformationRule['type']) => {
     switch (type) {
-      case 'format':
+      case TransformationType.FORMAT:
         return (
           <svg className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         );
-      case 'validation':
+      case TransformationType.VALIDATION:
         return (
           <svg className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         );
-      case 'transformation':
+      case TransformationType.TRANSFORMATION:
         return (
           <svg className="h-5 w-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
         );
-      case 'lookup':
+      case TransformationType.LOOKUP:
         return (
           <svg className="h-5 w-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -77,10 +77,10 @@ const TransformationRules: React.FC<TransformationRulesProps> = ({
         {onRuleAdd && (
           <Button onClick={() => onRuleAdd({
             name: 'New Rule',
-            type: 'transformation',
+            type: TransformationType.TRANSFORMATION,
             sourceField: '',
             targetField: '',
-            configuration: {},
+            config: {},
             enabled: true,
           })}>
             Add Rule
@@ -97,10 +97,10 @@ const TransformationRules: React.FC<TransformationRulesProps> = ({
         {onRuleAdd && (
           <Button onClick={() => onRuleAdd({
             name: 'New Rule',
-            type: 'transformation',
+            type: TransformationType.TRANSFORMATION,
             sourceField: '',
             targetField: '',
-            configuration: {},
+            config: {},
             enabled: true,
           })}>
             Add Rule
