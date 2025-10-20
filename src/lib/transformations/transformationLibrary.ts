@@ -5,7 +5,7 @@ import {
   TransformationContext,
   TransformationResult,
 } from "./types";
-import { parseISO } from "date-fns";
+import { parseISO, format } from "date-fns";
 
 // Formatting Transformations
 const formatDate: Transformation = {
