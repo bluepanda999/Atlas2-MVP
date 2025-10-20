@@ -15,8 +15,12 @@ scrape_configs:
   - job_name: 'atlas2-api'
     static_configs:
       - targets: ['atlas2-api:3001']
-    metrics_path: '/metrics'
+    metrics_path: '/monitoring/metrics'
     scrape_interval: 30s
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      format: ['prometheus']
 
   # Atlas2 Web (Nginx)
   - job_name: 'atlas2-web'
@@ -42,3 +46,24 @@ scrape_configs:
     static_configs:
       - targets: ['node-exporter:9100']
     scrape_interval: 30s
+
+  # Atlas2 Worker
+  - job_name: 'atlas2-worker'
+    static_configs:
+      - targets: ['atlas2-worker:3002']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Custom monitoring endpoints
+  - job_name: 'atlas2-health'
+    static_configs:
+      - targets: ['atlas2-api:3001']
+    metrics_path: '/monitoring/health'
+    scrape_interval: 60s
+    scrape_timeout: 5s
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'up'
+        target_label: __name__
+        replacement: 'health_check_status'
