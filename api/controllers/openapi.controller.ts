@@ -1,9 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { OpenApiService, ImportOptions } from '../services/openapi.service';
+import { ApiClientGenerator, ClientGenerationOptions } from '../services/api-client-generator.service';
 import { ApiResponse } from '../types/api';
 
 export class OpenApiController {
-  constructor(private openApiService: OpenApiService) {}
+  constructor(
+    private openApiService: OpenApiService,
+    private apiClientGenerator: ApiClientGenerator
+  ) {}
 
   importSpecification = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -106,6 +110,67 @@ export class OpenApiController {
       };
 
       res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  generateClient = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { specId, language, includeAuth, baseUrl, clientName } = req.body;
+
+      if (!specId) {
+        res.status(400).json({
+          success: false,
+          error: 'Missing required field: specId'
+        });
+        return;
+      }
+
+      // TODO: Retrieve specification from storage
+      // For POC, we'll generate a sample client
+      const sampleSpec = {
+        openapi: '3.0.0',
+        info: {
+          title: clientName || 'Sample API',
+          version: '1.0.0'
+        },
+        paths: {
+          '/users': {
+            get: {
+              operationId: 'getUsers',
+              summary: 'Get all users'
+            },
+            post: {
+              operationId: 'createUser',
+              summary: 'Create a user'
+            }
+          },
+          '/users/{id}': {
+            get: {
+              operationId: 'getUserById',
+              summary: 'Get user by ID'
+            }
+          }
+        }
+      };
+
+      const options: ClientGenerationOptions = {
+        language: language || 'typescript',
+        includeAuth: includeAuth || false,
+        baseUrl: baseUrl || 'https://api.example.com',
+        clientName: clientName || 'SampleApiClient'
+      };
+
+      const client = await this.apiClientGenerator.generateClient(sampleSpec, options);
+
+      const response: ApiResponse<typeof client> = {
+        success: true,
+        data: client,
+        message: 'API client generated successfully'
+      };
+
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
