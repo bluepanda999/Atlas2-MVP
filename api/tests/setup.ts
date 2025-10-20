@@ -8,7 +8,7 @@ process.env.NODE_ENV = 'test';
 
 // Global test setup
 beforeAll(async () => {
-  console.log('Setting up test environment...');
+  console.log('Setting up API test environment...');
   
   // Set default test values
   process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/atlas2_test';
@@ -18,14 +18,14 @@ beforeAll(async () => {
   process.env.UPLOAD_DIR = process.env.UPLOAD_DIR || './test-uploads';
   process.env.MAX_FILE_SIZE = process.env.MAX_FILE_SIZE || '3221225472'; // 3GB
   process.env.CHUNK_SIZE = process.env.CHUNK_SIZE || '65536'; // 64KB
+  process.env.API_PORT = process.env.API_PORT || '3001';
 });
 
 afterAll(async () => {
-  console.log('Cleaning up test environment...');
+  console.log('Cleaning up API test environment...');
   
   // Cleanup test files
   const fs = require('fs').promises;
-  const path = require('path');
   
   try {
     const testUploadDir = process.env.UPLOAD_DIR || './test-uploads';

@@ -201,6 +201,31 @@ export class JobQueueService {
     }
   }
 
+  async removeJob(jobId: string): Promise<void> {
+    if (!this.isInitialized) {
+      throw new Error('Job queue service not initialized');
+    }
+
+    try {
+      const jobKey = `${config.redis.keyPrefix}job:${jobId}`;
+      
+      // Remove job from all possible queues
+      const queues = ['csv-processing']; // Add more queues as needed
+      for (const queue of queues) {
+        const queueKey = `${config.redis.keyPrefix}queue:${queue}`;
+        await this.client.zRem(queueKey, jobId);
+      }
+      
+      // Remove job data
+      await this.client.del(jobKey);
+      
+      logger.info('Job removed from queue', { jobId });
+    } catch (error) {
+      logger.error('Failed to remove job:', { jobId, error });
+      throw error;
+    }
+  }
+
   async getQueueStats(queue: string): Promise<{
     pending: number;
     processing: number;

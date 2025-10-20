@@ -9,7 +9,7 @@ import Upload from './pages/Upload';
 import Mapping from './pages/Mapping';
 
 // Components
-import DataValidation from './components/features/validation/DataValidation';
+import { DataValidation } from './components/features/validation/DataValidation';
 
 // Validation route wrapper
 const ValidationRoute: React.FC = () => {
@@ -95,7 +95,13 @@ const App: React.FC = () => {
   };
 
   // Protected route component
+  // TEMPORARY: In development mode, authentication is bypassed for POC testing
   const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    // Bypass authentication in development mode
+    if (import.meta.env.DEV) {
+      return <>{children}</>;
+    }
+    
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
     }

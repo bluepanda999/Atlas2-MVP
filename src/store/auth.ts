@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User } from '../types';
+import { User, UserRole } from '../types';
 import { authService } from '../services/api';
 
 interface AuthStore {
@@ -19,10 +19,21 @@ interface AuthStore {
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set: any, get: any) => ({
-      user: null,
-      token: null,
+      // TEMPORARY: Provide mock user data for POC testing in development
+      user: import.meta.env.DEV ? {
+        id: 'dev-user-1',
+        username: 'dev-user',
+        email: 'dev@example.com',
+        name: 'Development User',
+        role: UserRole.ADMIN,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } : null,
+      token: import.meta.env.DEV ? 'dev-token-for-poc' : null,
       refreshTokenValue: null,
-      isAuthenticated: false,
+      // TEMPORARY: Set isAuthenticated to true for POC testing in development
+      isAuthenticated: import.meta.env.DEV ? true : false,
       isLoading: false,
 
       login: async (email: string, password: string) => {
