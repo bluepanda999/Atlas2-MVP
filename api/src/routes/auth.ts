@@ -1,11 +1,17 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
+import { ApiKeyAuthController } from '../../../controllers/api-key-auth.controller';
+import { ApiKeyAuthService } from '../../../services/api-key-auth.service';
 
 const router = Router();
 
 // JWT Secret (should be in environment variables)
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+// Initialize API Key authentication
+const apiKeyAuthService = new ApiKeyAuthService();
+const apiKeyAuthController = new ApiKeyAuthController(apiKeyAuthService);
 
 router.post('/login', (req, res) => {
   try {
@@ -76,5 +82,15 @@ router.post('/refresh', (req, res) => {
     });
   }
 });
+
+// API Key Authentication endpoints
+router.post('/api-key/profiles', apiKeyAuthController.createAuthProfile.bind(apiKeyAuthController));
+router.get('/api-key/profiles', apiKeyAuthController.getAuthProfiles.bind(apiKeyAuthController));
+router.get('/api-key/profiles/:profileId', apiKeyAuthController.getAuthProfile.bind(apiKeyAuthController));
+router.put('/api-key/profiles/:profileId', apiKeyAuthController.updateAuthProfile.bind(apiKeyAuthController));
+router.delete('/api-key/profiles/:profileId', apiKeyAuthController.deleteAuthProfile.bind(apiKeyAuthController));
+router.post('/api-key/profiles/:profileId/test', apiKeyAuthController.testAuthentication.bind(apiKeyAuthController));
+router.post('/api-key/validate', apiKeyAuthController.validateApiKey.bind(apiKeyAuthController));
+router.get('/api-key/profiles/:profileId/headers', apiKeyAuthController.getAuthHeaders.bind(apiKeyAuthController));
 
 export { router as authRouter };
