@@ -1,25 +1,35 @@
-import { Request, Response, NextFunction } from 'express';
-import { MappingService } from '../services/mapping.service';
-import { ApiResponse } from '../types/api';
-import { FieldMapping, TransformationRule, MappingConfig } from '../types/mapping';
+import { Request, Response, NextFunction } from "express";
+import { MappingService } from "../services/mapping.service";
+import { ApiResponse } from "../src/types/api";
+import { TransformationRule, MappingConfig } from "../types/mapping";
 
 export class MappingController {
   constructor(private mappingService: MappingService) {}
 
-  createMapping = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  createMapping = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        throw new Error('User not authenticated');
+        throw new Error("User not authenticated");
       }
 
-      const mappingData: Omit<MappingConfig, 'id' | 'userId' | 'createdAt' | 'updatedAt'> = req.body;
-      const mapping = await this.mappingService.createMapping(mappingData, userId);
+      const mappingData: Omit<
+        MappingConfig,
+        "id" | "userId" | "createdAt" | "updatedAt"
+      > = req.body;
+      const mapping = await this.mappingService.createMapping(
+        mappingData,
+        userId,
+      );
 
       const response: ApiResponse<typeof mapping> = {
         success: true,
         data: mapping,
-        message: 'Mapping created successfully',
+        message: "Mapping created successfully",
       };
 
       res.status(201).json(response);
@@ -28,22 +38,29 @@ export class MappingController {
     }
   };
 
-  getMappings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getMappings = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        throw new Error('User not authenticated');
+        throw new Error("User not authenticated");
       }
 
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
 
-      const result = await this.mappingService.getMappings(userId, { page, limit });
+      const result = await this.mappingService.getMappings(userId, {
+        page,
+        limit,
+      });
 
       const response: ApiResponse<typeof result> = {
         success: true,
         data: result,
-        message: 'Mappings retrieved successfully',
+        message: "Mappings retrieved successfully",
       };
 
       res.json(response);
@@ -52,7 +69,11 @@ export class MappingController {
     }
   };
 
-  getMapping = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getMapping = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const { mappingId } = req.params;
       const userId = req.user?.id;
@@ -62,7 +83,7 @@ export class MappingController {
       const response: ApiResponse<typeof mapping> = {
         success: true,
         data: mapping,
-        message: 'Mapping retrieved successfully',
+        message: "Mapping retrieved successfully",
       };
 
       res.json(response);
@@ -71,18 +92,26 @@ export class MappingController {
     }
   };
 
-  updateMapping = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  updateMapping = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const { mappingId } = req.params;
       const userId = req.user?.id;
       const updates = req.body;
 
-      const mapping = await this.mappingService.updateMapping(mappingId, updates, userId);
+      const mapping = await this.mappingService.updateMapping(
+        mappingId,
+        updates,
+        userId,
+      );
 
       const response: ApiResponse<typeof mapping> = {
         success: true,
         data: mapping,
-        message: 'Mapping updated successfully',
+        message: "Mapping updated successfully",
       };
 
       res.json(response);
@@ -91,7 +120,11 @@ export class MappingController {
     }
   };
 
-  deleteMapping = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  deleteMapping = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const { mappingId } = req.params;
       const userId = req.user?.id;
@@ -101,7 +134,7 @@ export class MappingController {
       const response: ApiResponse<null> = {
         success: true,
         data: null,
-        message: 'Mapping deleted successfully',
+        message: "Mapping deleted successfully",
       };
 
       res.json(response);
@@ -110,21 +143,29 @@ export class MappingController {
     }
   };
 
-  previewMapping = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  previewMapping = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        throw new Error('User not authenticated');
+        throw new Error("User not authenticated");
       }
 
       const { mappings, csvData, limit = 10 } = req.body;
 
-      const preview = await this.mappingService.previewMapping(mappings, csvData, limit);
+      const preview = await this.mappingService.previewMapping(
+        mappings,
+        csvData,
+        limit,
+      );
 
       const response: ApiResponse<typeof preview> = {
         success: true,
         data: preview,
-        message: 'Mapping preview generated successfully',
+        message: "Mapping preview generated successfully",
       };
 
       res.json(response);
@@ -133,16 +174,23 @@ export class MappingController {
     }
   };
 
-  validateMapping = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  validateMapping = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const { mappings, apiFields } = req.body;
 
-      const validation = await this.mappingService.validateMapping(mappings, apiFields);
+      const validation = await this.mappingService.validateMapping(
+        mappings,
+        apiFields,
+      );
 
       const response: ApiResponse<typeof validation> = {
         success: true,
         data: validation,
-        message: 'Mapping validation completed',
+        message: "Mapping validation completed",
       };
 
       res.json(response);
@@ -151,18 +199,26 @@ export class MappingController {
     }
   };
 
-  addTransformationRule = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  addTransformationRule = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const { mappingId } = req.params;
       const userId = req.user?.id;
-      const ruleData: Omit<TransformationRule, 'id'> = req.body;
+      const ruleData: Omit<TransformationRule, "id"> = req.body;
 
-      const rule = await this.mappingService.addTransformationRule(mappingId, ruleData, userId);
+      const rule = await this.mappingService.addTransformationRule(
+        mappingId,
+        ruleData,
+        userId,
+      );
 
       const response: ApiResponse<typeof rule> = {
         success: true,
         data: rule,
-        message: 'Transformation rule added successfully',
+        message: "Transformation rule added successfully",
       };
 
       res.status(201).json(response);
@@ -171,7 +227,11 @@ export class MappingController {
     }
   };
 
-  updateTransformationRule = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  updateTransformationRule = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const { mappingId, ruleId } = req.params;
       const userId = req.user?.id;
@@ -181,13 +241,13 @@ export class MappingController {
         mappingId,
         ruleId,
         updates,
-        userId
+        userId,
       );
 
       const response: ApiResponse<typeof rule> = {
         success: true,
         data: rule,
-        message: 'Transformation rule updated successfully',
+        message: "Transformation rule updated successfully",
       };
 
       res.json(response);
@@ -196,17 +256,112 @@ export class MappingController {
     }
   };
 
-  deleteTransformationRule = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  deleteTransformationRule = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const { mappingId, ruleId } = req.params;
       const userId = req.user?.id;
 
-      await this.mappingService.deleteTransformationRule(mappingId, ruleId, userId);
+      await this.mappingService.deleteTransformationRule(
+        mappingId,
+        ruleId,
+        userId,
+      );
 
       const response: ApiResponse<null> = {
         success: true,
         data: null,
-        message: 'Transformation rule deleted successfully',
+        message: "Transformation rule deleted successfully",
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // New endpoints for drag-and-drop mapping interface
+  validateMappings = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const { csvUploadId, apiSpecId, mappings } = req.body;
+
+      const validation = await this.mappingService.validateMappings(
+        csvUploadId,
+        apiSpecId,
+        mappings,
+      );
+
+      const response: ApiResponse<typeof validation> = {
+        success: true,
+        data: validation,
+        message: "Mappings validated successfully",
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  saveMappings = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        throw new Error("User not authenticated");
+      }
+
+      const { csvUploadId, apiSpecId, mappings, mappingName } = req.body;
+
+      const savedMapping = await this.mappingService.saveMappings(
+        csvUploadId,
+        apiSpecId,
+        mappings,
+        mappingName,
+        userId,
+      );
+
+      const response: ApiResponse<typeof savedMapping> = {
+        success: true,
+        data: savedMapping,
+        message: "Mappings saved successfully",
+      };
+
+      res.status(201).json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  loadMappings = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const { csvUploadId, apiSpecId } = req.params;
+      const userId = req.user?.id;
+
+      const mappings = await this.mappingService.loadMappings(
+        csvUploadId,
+        apiSpecId,
+        userId,
+      );
+
+      const response: ApiResponse<typeof mappings> = {
+        success: true,
+        data: mappings,
+        message: "Mappings loaded successfully",
       };
 
       res.json(response);
