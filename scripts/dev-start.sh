@@ -253,25 +253,8 @@ run_migrations() {
     if [ -f "database/migrations/001_initial_schema.sql" ]; then
         print_status "Running migration: 001_initial_schema.sql"
         
-        # Use timeout to prevent hanging and run in background
-        timeout 60s podman exec -i atlas2-postgres psql -U atlas2 -d atlas2_dev < "database/migrations/001_initial_schema.sql" &
-        MIGRATION_PID=$!
-        
-        # Wait for migration to complete with timeout
-        local wait_count=0
-        while kill -0 $MIGRATION_PID 2>/dev/null; do
-            if [ $wait_count -ge 60 ]; then
-                print_warning "Migration taking longer than expected, continuing..."
-                kill $MIGRATION_PID 2>/dev/null || true
-                break
-            fi
-            sleep 1
-            ((wait_count++))
-        done
-        
-        # Check if migration succeeded
-        wait $MIGRATION_PID
-        if [ $? -eq 0 ]; then
+        # Run migration with timeout to prevent hanging
+        if timeout 60s podman exec -i atlas2-postgres psql -U atlas2 -d atlas2_dev < "database/migrations/001_initial_schema.sql"; then
             print_success "Migration 001_initial_schema.sql completed"
             ((migration_count++))
         else
@@ -284,25 +267,10 @@ run_migrations() {
     
     print_success "Database migrations completed ($migration_count migrations run)"
     
-    # Now run init script if it exists (with same timeout approach)
+    # Now run init script if it exists
     if [ -f "$PROJECT_ROOT/database/init.sql" ]; then
         print_status "Running database initialization script..."
-        timeout 30s podman exec -i atlas2-postgres psql -U atlas2 -d atlas2_dev < "$PROJECT_ROOT/database/init.sql" &
-        INIT_PID=$!
-        
-        local wait_count=0
-        while kill -0 $INIT_PID 2>/dev/null; do
-            if [ $wait_count -ge 30 ]; then
-                print_warning "Initialization taking longer than expected, continuing..."
-                kill $INIT_PID 2>/dev/null || true
-                break
-            fi
-            sleep 1
-            ((wait_count++))
-        done
-        
-        wait $INIT_PID
-        if [ $? -eq 0 ]; then
+        if timeout 30s podman exec -i atlas2-postgres psql -U atlas2 -d atlas2_dev < "$PROJECT_ROOT/database/init.sql"; then
             print_success "Database initialization completed"
         else
             print_warning "Database initialization had issues, but migrations completed"
@@ -365,7 +333,7 @@ start_applications() {
     
     print_status "Starting API server..."
     cd "$PROJECT_ROOT/api"
-    nohup npm run dev > "$PROJECT_ROOT/logs/api.log" 2>&1 &
+    nohup node simple-server.js > "$PROJECT_ROOT/logs/api.log" 2>&1 &
     API_PID=$!
     echo $API_PID > "$PROJECT_ROOT/logs/api.pid"
     
