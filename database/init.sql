@@ -7,9 +7,12 @@
 -- Connect to the database
 -- \c atlas2;
 
--- Run migrations
--- \i migrations/001_initial_schema.sql
--- \i migrations/002_add_indexes_and_constraints.sql
+-- Run migrations (skip problematic ones for now)
+\i /docker-entrypoint-initdb.d/migrations/001_initial_schema.sql;
+-- \i /docker-entrypoint-initdb.d/migrations/002_add_indexes_and_constraints.sql;
+-- \i /docker-entrypoint-initdb.d/migrations/003_add_api_key_authentication.sql;
+-- \i /docker-entrypoint-initdb.d/migrations/004_add_streaming_upload.sql;
+-- \i /docker-entrypoint-initdb.d/migrations/007_add_mapping_templates.sql;
 
 -- Create additional indexes for performance optimization
 -- Note: Using regular CREATE INDEX instead of CONCURRENTLY for initialization

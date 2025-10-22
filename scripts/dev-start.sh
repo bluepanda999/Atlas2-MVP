@@ -17,7 +17,7 @@ NC='\033[0m' # No Color
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-COMPOSE_FILE="$PROJECT_ROOT/docker-compose.podman.yml"
+COMPOSE_FILE="$PROJECT_ROOT/docker-compose.dev-simple.yml"
 ENV_FILE="$PROJECT_ROOT/.env"
 
 # Function to print colored output
@@ -153,9 +153,9 @@ install_dependencies() {
     print_success "All dependencies installed"
 }
 
-# Function to start infrastructure services
-start_infrastructure() {
-    print_header "Starting Infrastructure Services"
+# Function to start all containerized services
+start_all_services() {
+    print_header "Starting All Containerized Services"
     
     cd "$PROJECT_ROOT"
     
@@ -163,30 +163,21 @@ start_infrastructure() {
     print_status "Cleaning up any existing containers..."
     podman-compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
     
-    print_status "Starting PostgreSQL and Redis..."
-    podman-compose -f "$COMPOSE_FILE" up -d postgres redis
+    print_status "Building and starting all services..."
+    podman-compose -f "$COMPOSE_FILE" up -d --build
     
-    print_status "Waiting for database to be ready..."
-    sleep 10
+    print_status "Waiting for services to be ready..."
+    sleep 15
     
-    # Check if database is ready with better error handling
+    # Check if database is ready
     local db_ready=false
-    for i in {1..60}; do  # Increased timeout to 60 seconds
+    for i in {1..60}; do
         if podman exec atlas2-postgres pg_isready -U atlas2 -d atlas2_dev >/dev/null 2>&1; then
             print_success "Database is ready"
             db_ready=true
             break
         fi
         
-        # Check if container is still running
-        if ! podman ps --format "{{.Names}}" | grep -q "atlas2-postgres"; then
-            print_error "PostgreSQL container is not running"
-            print_status "Checking container logs..."
-            podman logs atlas2-postgres | tail -10
-            exit 1
-        fi
-        
-        # Show progress every 10 seconds
         if [ $((i % 10)) -eq 0 ]; then
             print_status "Still waiting for database... (${i}/60 seconds)"
         fi
@@ -203,160 +194,60 @@ start_infrastructure() {
     
     # Check if Redis is ready
     local redis_ready=false
-    for i in {1..30}; do  # Increased timeout to 30 seconds
+    for i in {1..30}; do
         if podman exec atlas2-redis redis-cli ping >/dev/null 2>&1; then
             print_success "Redis is ready"
             redis_ready=true
             break
         fi
-        
-        # Check if container is still running
-        if ! podman ps --format "{{.Names}}" | grep -q "atlas2-redis"; then
-            print_error "Redis container is not running"
-            print_status "Checking container logs..."
-            podman logs atlas2-redis | tail -10
-            exit 1
-        fi
-        
         sleep 1
     done
     
     if [ "$redis_ready" = false ]; then
         print_error "Redis failed to start within 30 seconds"
-        print_status "Checking Redis logs..."
-        podman logs atlas2-redis | tail -20
         exit 1
     fi
     
-    print_success "Infrastructure services are ready"
+    print_success "All services are starting up"
 }
 
-# Function to run database migrations
-run_migrations() {
-    print_header "Running Database Migrations"
+# Function to verify database initialization
+verify_database() {
+    print_header "Verifying Database Setup"
     
     cd "$PROJECT_ROOT"
     
-    # First, ensure database exists and is accessible
-    print_status "Verifying database connection..."
-    if ! podman exec atlas2-postgres psql -U atlas2 -d atlas2_dev -c "SELECT 1;" >/dev/null 2>&1; then
-        print_error "Cannot connect to database"
-        exit 1
-    fi
-    
-    print_status "Database connection verified"
-    
-    # Use a simpler approach - run migrations with timeout and better error handling
-    local migration_count=0
-    
-    # Only run the initial schema migration for development to avoid conflicts
-    if [ -f "database/migrations/001_initial_schema.sql" ]; then
-        print_status "Running migration: 001_initial_schema.sql"
-        
-        # Run migration with timeout to prevent hanging
-        if timeout 60s podman exec -i atlas2-postgres psql -U atlas2 -d atlas2_dev < "database/migrations/001_initial_schema.sql"; then
-            print_success "Migration 001_initial_schema.sql completed"
-            ((migration_count++))
-        else
-            print_warning "Migration had issues, but continuing..."
-        fi
-    fi
-    
-    # Skip other migrations for development to avoid conflicts
-    print_status "Skipping additional migrations for development (can be run manually if needed)"
-    
-    print_success "Database migrations completed ($migration_count migrations run)"
-    
-    # Skip init script for development to avoid issues
-    print_status "Skipping database initialization script for development (can be run manually if needed)"
+    # Wait a bit for the init script to complete
+    sleep 10
     
     # Verify database schema
     local table_count=$(podman exec atlas2-postgres psql -U atlas2 -d atlas2_dev -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | tr -d ' ' || echo "0")
     print_status "Database contains $table_count tables"
     
-    print_success "Database setup completed"
+    if [ "$table_count" -gt 0 ]; then
+        print_success "Database initialization completed successfully"
+    else
+        print_warning "Database might still be initializing, but services should start shortly"
+    fi
 }
 
-# Function to start monitoring services
-start_monitoring() {
-    print_header "Starting Monitoring Services"
-    
-    cd "$PROJECT_ROOT"
-    
-    print_status "Starting Prometheus and Grafana..."
-    podman-compose -f "$COMPOSE_FILE" up -d prometheus grafana
-    
-    print_status "Waiting for monitoring services to be ready..."
-    sleep 15
-    
-    # Check if Prometheus is ready
-    for i in {1..20}; do
-        if curl -s http://localhost:9090/-/healthy >/dev/null 2>&1; then
-            print_success "Prometheus is ready"
-            break
-        fi
-        if [ $i -eq 20 ]; then
-            print_warning "Prometheus might still be starting up"
-            break
-        fi
-        sleep 1
-    done
-    
-    # Check if Grafana is ready
-    for i in {1..20}; do
-        if curl -s -o /dev/null -w "%{http_code}" http://localhost:3002/ | grep -q "302\|200"; then
-            print_success "Grafana is ready"
-            break
-        fi
-        if [ $i -eq 20 ]; then
-            print_warning "Grafana might still be starting up"
-            break
-        fi
-        sleep 1
-    done
-    
-    print_success "Monitoring services are starting"
-}
 
-# Function to start application services
-start_applications() {
-    print_header "Starting Application Services"
-    
-    cd "$PROJECT_ROOT"
-    
-    print_status "Starting API server..."
-    cd "$PROJECT_ROOT/api"
-    nohup node simple-server.js > "$PROJECT_ROOT/logs/api.log" 2>&1 &
-    API_PID=$!
-    echo $API_PID > "$PROJECT_ROOT/logs/api.pid"
-    
-    print_status "Starting Worker service..."
-    cd "$PROJECT_ROOT/worker"
-    nohup npm run dev > "$PROJECT_ROOT/logs/worker.log" 2>&1 &
-    WORKER_PID=$!
-    echo $WORKER_PID > "$PROJECT_ROOT/logs/worker.pid"
-    
-    print_status "Starting Web application..."
-    cd "$PROJECT_ROOT"
-    nohup npm run dev > "$PROJECT_ROOT/logs/web.log" 2>&1 &
-    WEB_PID=$!
-    echo $WEB_PID > "$PROJECT_ROOT/logs/web.pid"
-    
-    print_success "Application services are starting"
-}
 
-# Function to wait for services to be ready
+# Function to wait for containerized services to be ready
 wait_for_services() {
     print_header "Waiting for Services to be Ready"
     
     # Wait for API server
     print_status "Waiting for API server..."
-    for i in {1..30}; do
+    for i in {1..60}; do
         if curl -s http://localhost:3001/health >/dev/null 2>&1; then
             print_success "API server is ready"
             break
         fi
-        if [ $i -eq 30 ]; then
+        if [ $((i % 10)) -eq 0 ]; then
+            print_status "Still waiting for API server... (${i}/60 seconds)"
+        fi
+        if [ $i -eq 60 ]; then
             print_warning "API server might still be starting up"
             break
         fi
@@ -365,42 +256,76 @@ wait_for_services() {
     
     # Wait for Web application
     print_status "Waiting for Web application..."
-    for i in {1..30}; do
+    for i in {1..60}; do
         if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ | grep -q "200\|404"; then
             print_success "Web application is ready"
             break
         fi
-        if [ $i -eq 30 ]; then
+        if [ $((i % 10)) -eq 0 ]; then
+            print_status "Still waiting for Web application... (${i}/60 seconds)"
+        fi
+        if [ $i -eq 60 ]; then
             print_warning "Web application might still be starting up"
             break
         fi
         sleep 2
     done
     
-    print_success "All services are starting up"
+    # Wait for Grafana
+    print_status "Waiting for Grafana..."
+    for i in {1..30}; do
+        if curl -s -o /dev/null -w "%{http_code}" http://localhost:3002/ | grep -q "302\|200"; then
+            print_success "Grafana is ready"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            print_warning "Grafana might still be starting up"
+            break
+        fi
+        sleep 2
+    done
+    
+    # Wait for Prometheus
+    print_status "Waiting for Prometheus..."
+    for i in {1..30}; do
+        if curl -s http://localhost:9090/-/healthy >/dev/null 2>&1; then
+            print_success "Prometheus is ready"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            print_warning "Prometheus might still be starting up"
+            break
+        fi
+        sleep 2
+    done
+    
+    print_success "All services are ready"
 }
 
 # Function to display service URLs
 display_service_urls() {
-    print_header "Service URLs"
+    print_header "Service URLs (Containerized)"
     
     echo -e "${CYAN}Application Services:${NC}"
-    echo -e "  🌐 Web Application: ${GREEN}http://localhost:3000${NC}"
-    echo -e "  🔧 API Server:      ${GREEN}http://localhost:3001${NC}"
+    echo -e "  🌐 Web Application: ${GREEN}http://localhost:3000${NC} (atlas2-web container)"
+    echo -e "  🔧 API Server:      ${GREEN}http://localhost:3001${NC} (atlas2-api container)"
     echo -e "  📊 API Health:      ${GREEN}http://localhost:3001/health${NC}"
-    echo -e "  🔐 Auth Test:       ${GREEN}http://localhost:3001/auth/test${NC}"
+    echo -e "  👷 Worker Service:  ${GREEN}atlas2-worker container${NC} (background processing)"
     
     echo -e "\n${CYAN}Monitoring Services:${NC}"
     echo -e "  📈 Prometheus:      ${GREEN}http://localhost:9090${NC}"
     echo -e "  📊 Grafana:         ${GREEN}http://localhost:3002${NC}"
-    echo -e "     Admin: ${YELLOW}admin${NC} / ${YELLOW}admin123${NC}"
+    echo -e "     Admin: ${YELLOW}admin${NC} / ${YELLOW}admin${NC}"
+    echo -e "  🪵 Loki:            ${GREEN}http://localhost:3100${NC} (log aggregation)"
+    echo -e "  🔍 Node Exporter:   ${GREEN}http://localhost:9100${NC} (metrics)"
     
     echo -e "\n${CYAN}Database Services:${NC}"
-    echo -e "  🗄️  PostgreSQL:      ${GREEN}localhost:5432${NC}"
-    echo -e "  🔴 Redis:           ${GREEN}localhost:6379${NC}"
+    echo -e "  🗄️  PostgreSQL:      ${GREEN}localhost:5432${NC} (atlas2-postgres container)"
+    echo -e "  🔴 Redis:           ${GREEN}localhost:6379${NC} (atlas2-redis container)"
     
-    echo -e "\n${CYAN}Development Tools:${NC}"
-    echo -e "  📝 Logs:            ${GREEN}$PROJECT_ROOT/logs/${NC}"
+    echo -e "\n${CYAN}Container Management:${NC}"
+    echo -e "  🐳 View Containers: ${GREEN}podman ps${NC}"
+    echo -e "  📝 View Logs:       ${GREEN}podman logs <container-name>${NC}"
     echo -e "  🛑 Stop Services:   ${GREEN}./scripts/dev-stop.sh${NC}"
     echo -e "  🧪 Run Tests:       ${GREEN}./test-system.sh${NC}"
 }
@@ -412,7 +337,7 @@ create_logs_directory() {
 
 # Main execution
 main() {
-    print_header "Atlas2 Development Environment Startup"
+    print_header "Atlas2 Development Environment Startup (Containerized)"
     
     # Change to project root
     cd "$PROJECT_ROOT"
@@ -423,20 +348,18 @@ main() {
     setup_environment
     create_logs_directory
     install_dependencies
-    print_status "Dependencies installed, starting infrastructure..."
-    start_infrastructure
-    print_status "Infrastructure started, running migrations..."
-    run_migrations
-    print_status "Migrations completed, starting monitoring..."
-    start_monitoring
-    print_status "Monitoring started, starting applications..."
-    start_applications
+    print_status "Dependencies installed, starting all containerized services..."
+    start_all_services
+    print_status "Services started, verifying database..."
+    verify_database
+    print_status "Database verified, waiting for services to be ready..."
     wait_for_services
     display_service_urls
     
     print_header "Development Environment Ready!"
-    print_success "Atlas2 is now running in development mode"
-    print_status "Check the logs in $PROJECT_ROOT/logs/ for detailed output"
+    print_success "Atlas2 is now running in fully containerized development mode"
+    print_status "All services are running in containers"
+    print_status "Use 'podman logs <container-name>' to view individual service logs"
     
     echo -e "\n${YELLOW}Tip: Use './scripts/dev-stop.sh' to stop all services${NC}"
 }

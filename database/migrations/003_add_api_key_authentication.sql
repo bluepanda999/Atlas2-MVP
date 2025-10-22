@@ -59,9 +59,9 @@ CREATE INDEX IF NOT EXISTS idx_auth_audit_action ON auth_audit_log(action);
 CREATE INDEX IF NOT EXISTS idx_auth_audit_created ON auth_audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_auth_audit_type ON auth_audit_log(config_type);
 
--- Insert default API client for testing
+-- Insert default API client for testing (using proper UUID)
 INSERT INTO api_clients (id, name, description, contact_email) 
-VALUES ('default-client', 'Default Client', 'Default API client for internal use', 'admin@atlas2.com')
+VALUES ('00000000-0000-0000-0000-000000000001', 'Default Client', 'Default API client for internal use', 'admin@atlas2.com')
 ON CONFLICT (id) DO NOTHING;
 
 -- Create updated_at trigger function

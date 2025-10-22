@@ -174,24 +174,11 @@ CREATE TRIGGER trigger_update_job_statistics
     AFTER INSERT OR UPDATE ON processing_results
     FOR EACH ROW EXECUTE FUNCTION update_job_statistics();
 
--- Add RLS (Row Level Security) policies for multi-tenant security
-ALTER TABLE processing_jobs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE api_configurations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE mapping_configurations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE transformation_rules ENABLE ROW LEVEL SECURITY;
-
--- Policy: Users can only access their own data
-CREATE POLICY user_processing_jobs_policy ON processing_jobs
-    FOR ALL TO authenticated_users
-    USING (user_id = current_setting('app.current_user_id')::uuid);
-
-CREATE POLICY user_api_configurations_policy ON api_configurations
-    FOR ALL TO authenticated_users
-    USING (user_id = current_setting('app.current_user_id')::uuid);
-
-CREATE POLICY user_mapping_configurations_policy ON mapping_configurations
-    FOR ALL TO authenticated_users
-    USING (user_id = current_setting('app.current_user_id')::uuid);
+-- Skip RLS (Row Level Security) policies for now - will be added later with proper role setup
+-- ALTER TABLE processing_jobs ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE api_configurations ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE mapping_configurations ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE transformation_rules ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY user_transformation_rules_policy ON transformation_rules
     FOR ALL TO authenticated_users

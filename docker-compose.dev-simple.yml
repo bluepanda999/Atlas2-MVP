@@ -1,0 +1,153 @@
+version: "3.8"
+
+services:
+  # Web Application (Development Mode)
+  atlas2-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_BASE_URL=http://localhost:3001
+      - VITE_MAX_FILE_SIZE=3221225472
+    depends_on:
+      - atlas2-api
+      - redis
+      - postgres
+    networks:
+      - atlas2-network
+    command: ["npm", "run", "dev"]
+
+  # API Processing Service (Development Mode)
+  atlas2-api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+      - ./logs/api:/var/log/atlas2/api
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://atlas2:atlas2_password@postgres:5432/atlas2_dev
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-super-secret-jwt-key-for-development-only-32-chars
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - atlas2-network
+    command: ["npm", "run", "dev"]
+
+  # File Processing Worker (Development Mode)
+  atlas2-worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./worker:/app
+      - /app/node_modules
+      - ./logs/worker:/var/log/atlas2/worker
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://atlas2:atlas2_password@postgres:5432/atlas2_dev
+      - REDIS_URL=redis://redis:6379
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=atlas2_dev
+      - DB_USER=atlas2
+      - DB_PASSWORD=atlas2_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MAX_FILE_SIZE=3221225472
+      - CHUNK_SIZE=65536
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - atlas2-network
+    command: ["npm", "run", "dev"]
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: atlas2-postgres
+    environment:
+      - POSTGRES_DB=atlas2_dev
+      - POSTGRES_USER=atlas2
+      - POSTGRES_PASSWORD=atlas2_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database:/docker-entrypoint-initdb.d
+    networks:
+      - atlas2-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas2 -d atlas2_dev"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: atlas2-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - atlas2-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: atlas2-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:Z
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+    networks:
+      - atlas2-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: atlas2-grafana
+    ports:
+      - "3002:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:Z
+    networks:
+      - atlas2-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  atlas2-network:
+    driver: bridge

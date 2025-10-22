@@ -14,9 +14,11 @@
   },
   "dependencies": {
     "bull": "^4.12.2",
+    "bullmq": "^4.15.4",
     "csv-parse": "^6.1.0",
     "csv-parser": "^3.0.0",
     "dotenv": "^16.3.1",
+    "ioredis": "^5.3.2",
     "pg": "^8.11.3",
     "redis": "^4.6.10",
     "winston": "^3.11.0"
