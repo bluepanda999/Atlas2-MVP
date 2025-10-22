@@ -1,5 +1,6 @@
-import { Pool, PoolClient, PoolConfig } from 'pg';
-import { logger } from '../utils/logger';
+import { Pool, PoolClient, PoolConfig } from "pg";
+import { logger } from "../utils/logger";
+import { config } from "../config/config";
 
 interface DatabaseConfig {
   host: string;
@@ -18,21 +19,37 @@ export class DatabaseService {
   private config: DatabaseConfig;
 
   constructor(config?: DatabaseConfig) {
-    this.config = config || this.getDefaultConfig();
+    this.config = config || this.getConfigFromEnv();
     this.pool = new Pool(this.getPoolConfig());
+  }
+
+  private getConfigFromEnv(): DatabaseConfig {
+    return {
+      host: config.database.host,
+      port: config.database.port,
+      database: config.database.name,
+      username: config.database.user,
+      password: config.database.password,
+      ssl: false,
+      maxConnections: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    };
   }
 
   private getDefaultConfig(): DatabaseConfig {
     return {
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'atlas2',
-      username: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'password',
-      ssl: process.env.DB_SSL === 'true',
-      maxConnections: parseInt(process.env.DB_MAX_CONNECTIONS || '20'),
-      idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '30000'),
-      connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '2000'),
+      host: process.env.DB_HOST || "localhost",
+      port: parseInt(process.env.DB_PORT || "5432"),
+      database: process.env.DB_NAME || "atlas2",
+      username: process.env.DB_USER || "postgres",
+      password: process.env.DB_PASSWORD || "password",
+      ssl: process.env.DB_SSL === "true",
+      maxConnections: parseInt(process.env.DB_MAX_CONNECTIONS || "20"),
+      idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || "30000"),
+      connectionTimeoutMillis: parseInt(
+        process.env.DB_CONNECTION_TIMEOUT || "2000",
+      ),
     };
   }
 
@@ -54,16 +71,16 @@ export class DatabaseService {
     try {
       // Test the connection
       const client = await this.pool.connect();
-      await client.query('SELECT NOW()');
+      await client.query("SELECT NOW()");
       client.release();
-      
-      logger.info('Database connected successfully', {
+
+      logger.info("Database connected successfully", {
         host: this.config.host,
         port: this.config.port,
         database: this.config.database,
       });
     } catch (error) {
-      logger.error('Failed to connect to database:', error);
+      logger.error("Failed to connect to database:", error);
       throw error;
     }
   }
@@ -71,37 +88,37 @@ export class DatabaseService {
   async disconnect(): Promise<void> {
     try {
       await this.pool.end();
-      logger.info('Database disconnected successfully');
+      logger.info("Database disconnected successfully");
     } catch (error) {
-      logger.error('Error disconnecting from database:', error);
+      logger.error("Error disconnecting from database:", error);
       throw error;
     }
   }
 
   async query(text: string, params?: any[]): Promise<any> {
     const start = Date.now();
-    
+
     try {
       const result = await this.pool.query(text, params);
       const duration = Date.now() - start;
-      
-      logger.debug('Database query executed', {
+
+      logger.debug("Database query executed", {
         query: text,
         duration: `${duration}ms`,
         rows: result.rowCount,
       });
-      
+
       return result;
     } catch (error) {
       const duration = Date.now() - start;
-      
-      logger.error('Database query failed:', {
+
+      logger.error("Database query failed:", {
         query: text,
         params,
         duration: `${duration}ms`,
         error: error instanceof Error ? error.message : error,
       });
-      
+
       throw error;
     }
   }
@@ -110,19 +127,30 @@ export class DatabaseService {
     return await this.pool.connect();
   }
 
-  async transaction<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
+  async transaction<T>(
+    callback: (client: PoolClient) => Promise<T>,
+  ): Promise<T> {
     const client = await this.getClient();
-    
+
     try {
-      await client.query('BEGIN');
+      await client.query("BEGIN");
       const result = await callback(client);
-      await client.query('COMMIT');
+      await client.query("COMMIT");
       return result;
     } catch (error) {
-      await client.query('ROLLBACK');
+      await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
+    }
+  }
+
+  async isConnected(): Promise<boolean> {
+    try {
+      const result = await this.query("SELECT 1");
+      return true;
+    } catch (error) {
+      return false;
     }
   }
 
@@ -132,22 +160,22 @@ export class DatabaseService {
     error?: string;
   }> {
     const start = Date.now();
-    
+
     try {
-      await this.query('SELECT 1');
+      await this.query("SELECT 1");
       const responseTime = Date.now() - start;
-      
+
       return {
         connected: true,
         responseTime,
       };
     } catch (error) {
       const responseTime = Date.now() - start;
-      
+
       return {
         connected: false,
         responseTime,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -167,11 +195,11 @@ export class DatabaseService {
   // Migration helper methods
   async runMigrations(migrationFiles: string[]): Promise<void> {
     logger.info(`Running ${migrationFiles.length} migrations`);
-    
+
     for (const migrationFile of migrationFiles) {
       try {
         const migration = await import(migrationFile);
-        if (migration.up && typeof migration.up === 'function') {
+        if (migration.up && typeof migration.up === "function") {
           await migration.up(this);
           logger.info(`Migration ${migrationFile} completed successfully`);
         }
@@ -188,26 +216,29 @@ export class DatabaseService {
     errors: string[];
   }> {
     const errors: string[] = [];
-    
+
     try {
       // Check if required tables exist
       const requiredTables = [
-        'processing_jobs',
-        'mapping_configs',
-        'field_mappings',
-        'transformation_rules',
-        'users',
-        'api_keys',
+        "processing_jobs",
+        "mapping_configs",
+        "field_mappings",
+        "transformation_rules",
+        "users",
+        "api_keys",
       ];
 
       for (const table of requiredTables) {
-        const result = await this.query(`
+        const result = await this.query(
+          `
           SELECT EXISTS (
             SELECT FROM information_schema.tables 
             WHERE table_schema = 'public' 
             AND table_name = $1
           )
-        `, [table]);
+        `,
+          [table],
+        );
 
         if (!result.rows[0].exists) {
           errors.push(`Required table '${table}' does not exist`);
@@ -230,7 +261,8 @@ export class DatabaseService {
   // Performance monitoring
   async getSlowQueries(thresholdMs: number = 1000): Promise<any[]> {
     try {
-      const result = await this.query(`
+      const result = await this.query(
+        `
         SELECT 
           query,
           calls,
@@ -241,11 +273,16 @@ export class DatabaseService {
         WHERE mean_time > $1
         ORDER BY mean_time DESC
         LIMIT 10
-      `, [thresholdMs]);
+      `,
+        [thresholdMs],
+      );
 
       return result.rows;
     } catch (error) {
-      logger.warn('Failed to get slow queries (pg_stat_statements may not be enabled):', error);
+      logger.warn(
+        "Failed to get slow queries (pg_stat_statements may not be enabled):",
+        error,
+      );
       return [];
     }
   }

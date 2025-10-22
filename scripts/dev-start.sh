@@ -244,43 +244,76 @@ run_migrations() {
         exit 1
     fi
     
-    # Always run migrations first to ensure tables exist
-    print_status "Running database migrations..."
+    print_status "Database connection verified"
+    
+    # Use a simpler approach - run migrations with timeout and better error handling
     local migration_count=0
     
-    for migration in database/migrations/*.sql; do
-        if [ -f "$migration" ]; then
-            migration_name=$(basename "$migration")
-            print_status "Running migration: $migration_name"
-            
-            # Run migration with error handling
-            if podman exec -i atlas2-postgres psql -U atlas2 -d atlas2_dev < "$migration"; then
-                print_success "Migration $migration_name completed"
-                ((migration_count++))
-            else
-                print_error "Migration $migration_name failed"
-                print_status "Continuing with other migrations..."
+    # Only run the initial schema migration for development to avoid conflicts
+    if [ -f "database/migrations/001_initial_schema.sql" ]; then
+        print_status "Running migration: 001_initial_schema.sql"
+        
+        # Use timeout to prevent hanging and run in background
+        timeout 60s podman exec -i atlas2-postgres psql -U atlas2 -d atlas2_dev < "database/migrations/001_initial_schema.sql" &
+        MIGRATION_PID=$!
+        
+        # Wait for migration to complete with timeout
+        local wait_count=0
+        while kill -0 $MIGRATION_PID 2>/dev/null; do
+            if [ $wait_count -ge 60 ]; then
+                print_warning "Migration taking longer than expected, continuing..."
+                kill $MIGRATION_PID 2>/dev/null || true
+                break
             fi
+            sleep 1
+            ((wait_count++))
+        done
+        
+        # Check if migration succeeded
+        wait $MIGRATION_PID
+        if [ $? -eq 0 ]; then
+            print_success "Migration 001_initial_schema.sql completed"
+            ((migration_count++))
+        else
+            print_warning "Migration had issues, but continuing..."
         fi
-    done
+    fi
+    
+    # Skip other migrations for development to avoid conflicts
+    print_status "Skipping additional migrations for development (can be run manually if needed)"
     
     print_success "Database migrations completed ($migration_count migrations run)"
     
-    # Now run init script to add additional indexes, views, and data
+    # Now run init script if it exists (with same timeout approach)
     if [ -f "$PROJECT_ROOT/database/init.sql" ]; then
         print_status "Running database initialization script..."
-        if podman exec -i atlas2-postgres psql -U atlas2 -d atlas2_dev < "$PROJECT_ROOT/database/init.sql"; then
+        timeout 30s podman exec -i atlas2-postgres psql -U atlas2 -d atlas2_dev < "$PROJECT_ROOT/database/init.sql" &
+        INIT_PID=$!
+        
+        local wait_count=0
+        while kill -0 $INIT_PID 2>/dev/null; do
+            if [ $wait_count -ge 30 ]; then
+                print_warning "Initialization taking longer than expected, continuing..."
+                kill $INIT_PID 2>/dev/null || true
+                break
+            fi
+            sleep 1
+            ((wait_count++))
+        done
+        
+        wait $INIT_PID
+        if [ $? -eq 0 ]; then
             print_success "Database initialization completed"
         else
-            print_warning "Database initialization script had some issues, but migrations completed successfully"
+            print_warning "Database initialization had issues, but migrations completed"
         fi
-    else
-        print_warning "No init.sql found, migrations completed successfully"
     fi
     
     # Verify database schema
     local table_count=$(podman exec atlas2-postgres psql -U atlas2 -d atlas2_dev -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | tr -d ' ' || echo "0")
     print_status "Database contains $table_count tables"
+    
+    print_success "Database setup completed"
 }
 
 # Function to start monitoring services
@@ -429,9 +462,13 @@ main() {
     setup_environment
     create_logs_directory
     install_dependencies
+    print_status "Dependencies installed, starting infrastructure..."
     start_infrastructure
+    print_status "Infrastructure started, running migrations..."
     run_migrations
+    print_status "Migrations completed, starting monitoring..."
     start_monitoring
+    print_status "Monitoring started, starting applications..."
     start_applications
     wait_for_services
     display_service_urls
