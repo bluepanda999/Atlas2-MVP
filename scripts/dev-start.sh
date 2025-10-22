@@ -267,15 +267,8 @@ run_migrations() {
     
     print_success "Database migrations completed ($migration_count migrations run)"
     
-    # Now run init script if it exists
-    if [ -f "$PROJECT_ROOT/database/init.sql" ]; then
-        print_status "Running database initialization script..."
-        if timeout 30s podman exec -i atlas2-postgres psql -U atlas2 -d atlas2_dev < "$PROJECT_ROOT/database/init.sql"; then
-            print_success "Database initialization completed"
-        else
-            print_warning "Database initialization had issues, but migrations completed"
-        fi
-    fi
+    # Skip init script for development to avoid issues
+    print_status "Skipping database initialization script for development (can be run manually if needed)"
     
     # Verify database schema
     local table_count=$(podman exec atlas2-postgres psql -U atlas2 -d atlas2_dev -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | tr -d ' ' || echo "0")
