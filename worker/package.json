@@ -4,7 +4,7 @@
   "description": "Atlas2 Worker Service",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only index.ts",
+    "dev": "ts-node-dev --project ./tsconfig.json --respawn --transpile-only index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "jest",

@@ -1,8 +1,8 @@
-import { Queue, Worker, Job } from 'bullmq';
-import Redis from 'ioredis';
-import { config } from '../config/config';
-import { logger } from '../utils/logger';
-import { CsvProcessorService } from './csv-processor.service';
+import { Queue, Worker, Job } from "bullmq";
+import Redis from "ioredis";
+import { config } from "../config/config";
+import { logger } from "../utils/logger";
+import { CsvProcessorService } from "./csv-processor.service";
 
 export interface JobData {
   jobId: string;
@@ -19,19 +19,23 @@ export class JobQueueService {
   private csvProcessor: CsvProcessorService;
 
   constructor() {
-    this.redis = new Redis(config.redis.url, {
-      maxRetriesPerRequest: 3,
-      retryDelayOnFailover: 100,
-    });
+    const connectionOptions = {
+      host: config.redis.host,
+      port: config.redis.port,
+      password: config.redis.password || undefined,
+      maxRetriesPerRequest: null,
+    };
 
-    this.csvQueue = new Queue('csv-processing', {
-      connection: this.redis,
+    this.redis = new Redis(connectionOptions);
+
+    this.csvQueue = new Queue("csv-processing", {
+      connection: connectionOptions,
       defaultJobOptions: {
         removeOnComplete: 100, // Keep last 100 completed jobs
         removeOnFail: 50, // Keep last 50 failed jobs
         attempts: 3,
         backoff: {
-          type: 'exponential',
+          type: "exponential",
           delay: 2000,
         },
       },
@@ -41,7 +45,7 @@ export class JobQueueService {
     this.csvProcessor = new CsvProcessorService(
       {} as any, // DatabaseService
       {} as any, // UploadRepository
-      {} as any  // MappingRepository
+      {} as any, // MappingRepository
     );
   }
 
@@ -49,28 +53,24 @@ export class JobQueueService {
     try {
       // Test Redis connection
       await this.redis.ping();
-      logger.info('Redis connection established');
+      logger.info("Redis connection established");
 
       // Initialize worker
-      this.worker = new Worker(
-        'csv-processing',
-        this.processJob.bind(this),
-        {
-          connection: this.redis,
-          concurrency: config.worker.concurrency || 2,
-          limiter: {
-            max: 10,
-            duration: 60000, // 1 minute
-          },
-        }
-      );
+      this.worker = new Worker("csv-processing", this.processJob.bind(this), {
+        connection: this.redis,
+        concurrency: config.worker.concurrency || 2,
+        limiter: {
+          max: 10,
+          duration: 60000, // 1 minute
+        },
+      });
 
       // Setup worker event listeners
       this.setupWorkerEvents();
 
-      logger.info('Job queue initialized successfully');
+      logger.info("Job queue initialized successfully");
     } catch (error) {
-      logger.error('Failed to initialize job queue:', error);
+      logger.error("Failed to initialize job queue:", error);
       throw error;
     }
   }
@@ -91,7 +91,7 @@ export class JobQueueService {
 
       return job;
     } catch (error) {
-      logger.error('Failed to add job to queue:', error);
+      logger.error("Failed to add job to queue:", error);
       throw error;
     }
   }
@@ -142,7 +142,7 @@ export class JobQueueService {
         delayed: delayed.length,
       };
     } catch (error) {
-      logger.error('Failed to get queue stats:', error);
+      logger.error("Failed to get queue stats:", error);
       throw error;
     }
   }
@@ -150,9 +150,9 @@ export class JobQueueService {
   async pauseQueue(): Promise<void> {
     try {
       await this.csvQueue.pause();
-      logger.info('Queue paused');
+      logger.info("Queue paused");
     } catch (error) {
-      logger.error('Failed to pause queue:', error);
+      logger.error("Failed to pause queue:", error);
       throw error;
     }
   }
@@ -160,9 +160,9 @@ export class JobQueueService {
   async resumeQueue(): Promise<void> {
     try {
       await this.csvQueue.resume();
-      logger.info('Queue resumed');
+      logger.info("Queue resumed");
     } catch (error) {
-      logger.error('Failed to resume queue:', error);
+      logger.error("Failed to resume queue:", error);
       throw error;
     }
   }
@@ -170,9 +170,9 @@ export class JobQueueService {
   async clearQueue(): Promise<void> {
     try {
       await this.csvQueue.drain();
-      logger.info('Queue cleared');
+      logger.info("Queue cleared");
     } catch (error) {
-      logger.error('Failed to clear queue:', error);
+      logger.error("Failed to clear queue:", error);
       throw error;
     }
   }
@@ -209,33 +209,33 @@ export class JobQueueService {
   }
 
   private setupWorkerEvents(): void {
-    this.worker.on('completed', (job) => {
+    this.worker.on("completed", (job) => {
       logger.info(`Job completed: ${job.id}`, {
         jobId: job.id,
         data: job.data,
       });
     });
 
-    this.worker.on('failed', (job, err) => {
+    this.worker.on("failed", (job, err) => {
       logger.error(`Job failed: ${job?.id}`, {
-        jobId: job?.id,
+        jobId: job?.id || "unknown",
         error: err.message,
         stack: err.stack,
       });
     });
 
-    this.worker.on('error', (err) => {
-      logger.error('Worker error:', err);
+    this.worker.on("error", (err) => {
+      logger.error("Worker error:", err);
     });
 
-    this.worker.on('stalled', (job) => {
+    this.worker.on("stalled", (job) => {
       logger.warn(`Job stalled: ${job?.id}`, {
-        jobId: job?.id,
+        jobId: job?.id || "unknown",
       });
     });
 
-    this.csvQueue.on('error', (err) => {
-      logger.error('Queue error:', err);
+    this.csvQueue.on("error", (err) => {
+      logger.error("Queue error:", err);
     });
   }
 
@@ -253,7 +253,7 @@ export class JobQueueService {
 
   async shutdown(): Promise<void> {
     try {
-      logger.info('Shutting down job queue...');
+      logger.info("Shutting down job queue...");
 
       // Close worker
       if (this.worker) {
@@ -270,9 +270,9 @@ export class JobQueueService {
         await this.redis.quit();
       }
 
-      logger.info('Job queue shutdown complete');
+      logger.info("Job queue shutdown complete");
     } catch (error) {
-      logger.error('Error during job queue shutdown:', error);
+      logger.error("Error during job queue shutdown:", error);
       throw error;
     }
   }

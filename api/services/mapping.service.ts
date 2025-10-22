@@ -1,17 +1,25 @@
-import { MappingConfig, FieldMapping, TransformationRule, ValidationResult } from '../types/mapping';
-import { MappingRepository } from '../repositories/mapping.repository';
-import { AppError } from '../utils/errors';
-import { v4 as uuidv4 } from 'uuid';
+import {
+  MappingConfig,
+  FieldMapping,
+  TransformationRule,
+  ValidationResult,
+} from "../types/mapping";
+import { MappingRepository } from "../repositories/mapping.repository";
+import { AppError } from "../utils/errors";
+import { v4 as uuidv4 } from "uuid";
 
 export class MappingService {
   constructor(private mappingRepository: MappingRepository) {}
 
   async createMapping(
-    mappingData: Omit<MappingConfig, 'id' | 'userId' | 'createdAt' | 'updatedAt'>,
-    userId: string
+    mappingData: Omit<
+      MappingConfig,
+      "id" | "userId" | "createdAt" | "updatedAt"
+    >,
+    userId: string,
   ): Promise<MappingConfig> {
     try {
-      const mapping: Omit<MappingConfig, 'id'> = {
+      const mapping: Omit<MappingConfig, "id"> = {
         ...mappingData,
         userId,
         createdAt: new Date(),
@@ -20,13 +28,13 @@ export class MappingService {
 
       return await this.mappingRepository.create(mapping);
     } catch (error) {
-      throw new AppError('Failed to create mapping', 500, error);
+      throw new AppError("Failed to create mapping", 500, error);
     }
   }
 
   async getMappings(
     userId: string,
-    options: { page?: number; limit?: number }
+    options: { page?: number; limit?: number },
   ): Promise<{
     mappings: MappingConfig[];
     total: number;
@@ -38,10 +46,13 @@ export class MappingService {
     const limit = options.limit || 10;
     const offset = (page - 1) * limit;
 
-    const { mappings, total } = await this.mappingRepository.findByUserId(userId, {
-      limit,
-      offset,
-    });
+    const { mappings, total } = await this.mappingRepository.findByUserId(
+      userId,
+      {
+        limit,
+        offset,
+      },
+    );
 
     return {
       mappings,
@@ -55,11 +66,11 @@ export class MappingService {
   async getMapping(mappingId: string, userId?: string): Promise<MappingConfig> {
     const mapping = await this.mappingRepository.findById(mappingId);
     if (!mapping) {
-      throw new AppError('Mapping not found', 404);
+      throw new AppError("Mapping not found", 404);
     }
 
     if (userId && mapping.userId !== userId) {
-      throw new AppError('Access denied', 403);
+      throw new AppError("Access denied", 403);
     }
 
     return mapping;
@@ -68,17 +79,17 @@ export class MappingService {
   async updateMapping(
     mappingId: string,
     updates: Partial<MappingConfig>,
-    userId?: string
+    userId?: string,
   ): Promise<MappingConfig> {
     const existingMapping = await this.getMapping(mappingId, userId);
-    
+
     const updatedMapping = await this.mappingRepository.update(mappingId, {
       ...updates,
       updatedAt: new Date(),
     });
 
     if (!updatedMapping) {
-      throw new AppError('Failed to update mapping', 500);
+      throw new AppError("Failed to update mapping", 500);
     }
 
     return updatedMapping;
@@ -92,35 +103,37 @@ export class MappingService {
   async previewMapping(
     mappings: FieldMapping[],
     csvData: any[],
-    limit: number = 10
+    limit: number = 10,
   ): Promise<{
     previewData: any[];
     mappedFields: string[];
     unmappedCsvFields: string[];
     requiredFieldsMissing: string[];
   }> {
-    const previewData = csvData.slice(0, limit).map(row => {
+    const previewData = csvData.slice(0, limit).map((row) => {
       const mappedRow: any = {};
-      
-      mappings.forEach(mapping => {
+
+      mappings.forEach((mapping) => {
         if (mapping.csvHeader) {
-          mappedRow[mapping.apiFieldName] = row[mapping.csvHeader] || '';
+          mappedRow[mapping.apiFieldName] = row[mapping.csvHeader] || "";
         }
       });
-      
+
       return mappedRow;
     });
 
     const mappedFields = mappings
-      .filter(m => m.csvHeader)
-      .map(m => m.csvHeader!);
+      .filter((m) => m.csvHeader)
+      .map((m) => m.csvHeader!);
 
     const allCsvFields = Object.keys(csvData[0] || {});
-    const unmappedCsvFields = allCsvFields.filter(field => !mappedFields.includes(field));
+    const unmappedCsvFields = allCsvFields.filter(
+      (field) => !mappedFields.includes(field),
+    );
 
     const requiredFieldsMissing = mappings
-      .filter(m => m.required && !m.csvHeader)
-      .map(m => m.apiFieldName);
+      .filter((m) => m.required && !m.csvHeader)
+      .map((m) => m.apiFieldName);
 
     return {
       previewData,
@@ -132,41 +145,48 @@ export class MappingService {
 
   async validateMapping(
     mappings: FieldMapping[],
-    apiFields: any[]
+    apiFields: any[],
   ): Promise<ValidationResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
 
     // Check for required fields
-    const requiredApiFields = apiFields.filter(field => field.required);
-    const mappedRequiredFields = mappings.filter(m => m.required && m.csvHeader);
-    
-    const missingRequiredFields = requiredApiFields.filter(apiField =>
-      !mappedRequiredFields.some(mapping => mapping.apiFieldId === apiField.id)
+    const requiredApiFields = apiFields.filter((field) => field.required);
+    const mappedRequiredFields = mappings.filter(
+      (m) => m.required && m.csvHeader,
+    );
+
+    const missingRequiredFields = requiredApiFields.filter(
+      (apiField) =>
+        !mappedRequiredFields.some(
+          (mapping) => mapping.apiFieldId === apiField.id,
+        ),
     );
 
     if (missingRequiredFields.length > 0) {
       errors.push(
-        `Required fields not mapped: ${missingRequiredFields.map(f => f.name).join(', ')}`
+        `Required fields not mapped: ${missingRequiredFields.map((f) => f.name).join(", ")}`,
       );
     }
 
     // Check for duplicate CSV mappings
-    const csvMappings = mappings.filter(m => m.csvHeader);
-    const csvHeaders = csvMappings.map(m => m.csvHeader);
-    const duplicateHeaders = csvHeaders.filter((header, index) => csvHeaders.indexOf(header) !== index);
+    const csvMappings = mappings.filter((m) => m.csvHeader);
+    const csvHeaders = csvMappings.map((m) => m.csvHeader);
+    const duplicateHeaders = csvHeaders.filter(
+      (header, index) => csvHeaders.indexOf(header) !== index,
+    );
 
     if (duplicateHeaders.length > 0) {
       errors.push(
-        `Duplicate CSV column mappings: ${[...new Set(duplicateHeaders)].join(', ')}`
+        `Duplicate CSV column mappings: ${[...new Set(duplicateHeaders)].join(", ")}`,
       );
     }
 
     // Check for unmapped required fields
-    const unmappedRequired = mappings.filter(m => m.required && !m.csvHeader);
+    const unmappedRequired = mappings.filter((m) => m.required && !m.csvHeader);
     if (unmappedRequired.length > 0) {
       warnings.push(
-        `Required fields without CSV mapping: ${unmappedRequired.map(m => m.apiFieldName).join(', ')}`
+        `Required fields without CSV mapping: ${unmappedRequired.map((m) => m.apiFieldName).join(", ")}`,
       );
     }
 
@@ -174,14 +194,17 @@ export class MappingService {
     for (const mapping of mappings) {
       if (!mapping.csvHeader) continue;
 
-      const apiField = apiFields.find(f => f.id === mapping.apiFieldId);
+      const apiField = apiFields.find((f) => f.id === mapping.apiFieldId);
       if (!apiField) continue;
 
       // This would require actual CSV data to validate
       // For now, just warn about potential type mismatches
-      if (apiField.type === 'email' && !mapping.csvHeader.toLowerCase().includes('email')) {
+      if (
+        apiField.type === "email" &&
+        !mapping.csvHeader.toLowerCase().includes("email")
+      ) {
         warnings.push(
-          `Field "${mapping.apiFieldName}" is type email but mapped to "${mapping.csvHeader}"`
+          `Field "${mapping.apiFieldName}" is type email but mapped to "${mapping.csvHeader}"`,
         );
       }
     }
@@ -195,8 +218,8 @@ export class MappingService {
 
   async addTransformationRule(
     mappingId: string,
-    ruleData: Omit<TransformationRule, 'id'>,
-    userId?: string
+    ruleData: Omit<TransformationRule, "id">,
+    userId?: string,
   ): Promise<TransformationRule> {
     const mapping = await this.getMapping(mappingId, userId);
 
@@ -205,27 +228,33 @@ export class MappingService {
       id: uuidv4(),
     };
 
-    const updatedMapping = await this.mappingRepository.addTransformationRule(mappingId, rule);
-    return updatedMapping.transformationRules.find(r => r.id === rule.id)!;
+    const updatedMapping = await this.mappingRepository.addTransformationRule(
+      mappingId,
+      rule,
+    );
+    return updatedMapping.transformationRules.find((r) => r.id === rule.id)!;
   }
 
   async updateTransformationRule(
     mappingId: string,
     ruleId: string,
     updates: Partial<TransformationRule>,
-    userId?: string
+    userId?: string,
   ): Promise<TransformationRule> {
     const mapping = await this.getMapping(mappingId, userId);
 
-    const updatedMapping = await this.mappingRepository.updateTransformationRule(
-      mappingId,
-      ruleId,
-      updates
-    );
+    const updatedMapping =
+      await this.mappingRepository.updateTransformationRule(
+        mappingId,
+        ruleId,
+        updates,
+      );
 
-    const updatedRule = updatedMapping.transformationRules.find(r => r.id === ruleId);
+    const updatedRule = updatedMapping.transformationRules.find(
+      (r) => r.id === ruleId,
+    );
     if (!updatedRule) {
-      throw new AppError('Transformation rule not found', 404);
+      throw new AppError("Transformation rule not found", 404);
     }
 
     return updatedRule;
@@ -234,7 +263,7 @@ export class MappingService {
   async deleteTransformationRule(
     mappingId: string,
     ruleId: string,
-    userId?: string
+    userId?: string,
   ): Promise<void> {
     const mapping = await this.getMapping(mappingId, userId);
     await this.mappingRepository.deleteTransformationRule(mappingId, ruleId);
@@ -242,12 +271,12 @@ export class MappingService {
 
   async applyTransformationRules(
     data: any[],
-    rules: TransformationRule[]
+    rules: TransformationRule[],
   ): Promise<any[]> {
-    return data.map(row => {
+    return data.map((row) => {
       let transformedRow = { ...row };
 
-      for (const rule of rules.filter(r => r.enabled)) {
+      for (const rule of rules.filter((r) => r.enabled)) {
         transformedRow = this.applyRule(transformedRow, rule);
       }
 
@@ -266,16 +295,16 @@ export class MappingService {
     let transformedValue = value;
 
     switch (type) {
-      case 'format':
+      case "format":
         transformedValue = this.applyFormatRule(value, configuration);
         break;
-      case 'validation':
+      case "validation":
         transformedValue = this.applyValidationRule(value, configuration);
         break;
-      case 'transformation':
+      case "transformation":
         transformedValue = this.applyTransformationRule(value, configuration);
         break;
-      case 'lookup':
+      case "lookup":
         transformedValue = this.applyLookupRule(value, configuration);
         break;
     }
@@ -300,12 +329,12 @@ export class MappingService {
     const { operation } = config;
 
     switch (operation) {
-      case 'uppercase':
-        return typeof value === 'string' ? value.toUpperCase() : value;
-      case 'lowercase':
-        return typeof value === 'string' ? value.toLowerCase() : value;
-      case 'trim':
-        return typeof value === 'string' ? value.trim() : value;
+      case "uppercase":
+        return typeof value === "string" ? value.toUpperCase() : value;
+      case "lowercase":
+        return typeof value === "string" ? value.toLowerCase() : value;
+      case "trim":
+        return typeof value === "string" ? value.trim() : value;
       default:
         return value;
     }
@@ -315,4 +344,158 @@ export class MappingService {
     // Implementation for lookup rules
     return value;
   }
+
+  // New methods for drag-and-drop mapping interface
+  async validateMappings(
+    csvUploadId: string,
+    apiSpecId: string,
+    mappings: any[],
+  ): Promise<{
+    isValid: boolean;
+    errors: ValidationError[];
+    warnings: ValidationWarning[];
+  }> {
+    const errors: ValidationError[] = [];
+    const warnings: ValidationWarning[] = [];
+
+    try {
+      // Get CSV preview data to validate against
+      // This would integrate with the upload service
+      // For now, we'll do basic validation
+
+      // Check for duplicate target field mappings
+      const targetFieldIds = mappings.map((m) => m.apiFieldId).filter(Boolean);
+      const duplicateTargets = targetFieldIds.filter(
+        (id, index) => targetFieldIds.indexOf(id) !== index,
+      );
+
+      if (duplicateTargets.length > 0) {
+        errors.push({
+          fieldId: duplicateTargets[0],
+          type: "error",
+          message: "Duplicate API field mappings detected",
+          suggestion: "Each API field should only be mapped once",
+        });
+      }
+
+      // Check for empty mappings
+      const emptyMappings = mappings.filter((m) => !m.csvHeader && m.required);
+      emptyMappings.forEach((mapping) => {
+        errors.push({
+          fieldId: mapping.id,
+          type: "error",
+          message: "Required field is not mapped",
+          suggestion: "Drag a CSV column to this required field",
+        });
+      });
+
+      // Type compatibility warnings
+      mappings.forEach((mapping) => {
+        if (mapping.csvHeader && mapping.sourceType && mapping.targetType) {
+          if (!this.isTypeCompatible(mapping.sourceType, mapping.targetType)) {
+            warnings.push({
+              fieldId: mapping.id,
+              type: "warning",
+              message: `Type mismatch: ${mapping.sourceType} → ${mapping.targetType}`,
+              suggestion:
+                "Consider adding a transformation to convert the data type",
+            });
+          }
+        }
+      });
+    } catch (error) {
+      throw new AppError("Failed to validate mappings", 500, error);
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+    };
+  }
+
+  async saveMappings(
+    csvUploadId: string,
+    apiSpecId: string,
+    mappings: any[],
+    mappingName: string,
+    userId: string,
+  ): Promise<MappingConfig> {
+    try {
+      const mappingData: Omit<MappingConfig, "id" | "createdAt" | "updatedAt"> =
+        {
+          userId,
+          name: mappingName,
+          csvUploadId,
+          apiSpecId,
+          fieldMappings: mappings.map((m) => ({
+            id: m.id,
+            sourceFieldId: (m as any).sourceFieldId || "",
+            targetFieldId: m.apiFieldId,
+            transformations: m.transformations || [],
+            defaultValue: m.defaultValue,
+            condition: m.condition,
+          })),
+          transformationRules: [],
+          isActive: true,
+        };
+
+      return await this.createMapping(mappingData, userId);
+    } catch (error) {
+      throw new AppError("Failed to save mappings", 500, error);
+    }
+  }
+
+  async loadMappings(
+    csvUploadId: string,
+    apiSpecId: string,
+    userId?: string,
+  ): Promise<{
+    mappings: any[];
+    hasExisting: boolean;
+  }> {
+    try {
+      // For now, return empty mappings
+      // In a real implementation, this would query existing mappings
+      return {
+        mappings: [],
+        hasExisting: false,
+      };
+    } catch (error) {
+      throw new AppError("Failed to load mappings", 500, error);
+    }
+  }
+
+  private isTypeCompatible(sourceType: string, targetType: string): boolean {
+    if (sourceType === targetType) return true;
+
+    // String is compatible with most types
+    if (sourceType === "string") return true;
+
+    // Number is compatible with string, currency, percentage
+    if (sourceType === "number") {
+      return ["string", "currency", "percentage"].includes(targetType);
+    }
+
+    // Date is compatible with string
+    if (sourceType === "date") {
+      return targetType === "string";
+    }
+
+    return false;
+  }
+}
+
+interface ValidationError {
+  fieldId: string;
+  type: "error" | "warning" | "info";
+  message: string;
+  suggestion?: string;
+}
+
+interface ValidationWarning {
+  fieldId: string;
+  type: "warning" | "info";
+  message: string;
+  suggestion?: string;
 }

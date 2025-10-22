@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settings Page Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      .test {
+        margin: 10px 0;
+        padding: 10px;
+        border: 1px solid #ccc;
+      }
+      .pass {
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+      }
+      .fail {
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+      }
+      .instructions {
+        background-color: #e2e3e5;
+        padding: 15px;
+        margin: 20px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔧 Settings Page Test</h1>
+
+    <div class="instructions">
+      <h2>📋 Test Instructions</h2>
+      <p>
+        <strong
+          >If you're still seeing "Settings Page (TODO)" in the main
+          app:</strong
+        >
+      </p>
+      <ol>
+        <li>
+          Open your browser and go to:
+          <a href="http://localhost:3000" target="_blank"
+            >http://localhost:3000</a
+          >
+        </li>
+        <li>
+          Navigate to Settings page:
+          <a href="http://localhost:3000/settings" target="_blank"
+            >http://localhost:3000/settings</a
+          >
+        </li>
+        <li>
+          Clear browser cache (Ctrl+Shift+R on Windows/Linux, Cmd+Shift+R on
+          Mac)
+        </li>
+        <li>Open Developer Tools (F12) and check Console for any errors</li>
+        <li>
+          You should see a full Settings page with endpoint configuration
+          options
+        </li>
+      </ol>
+    </div>
+
+    <h2>✅ What the Settings Page Should Show</h2>
+
+    <div class="test pass">
+      <h3>🎯 Page Title</h3>
+      <p>
+        Should show: "Settings" with subtitle "Configure your API endpoints and
+        application settings"
+      </p>
+    </div>
+
+    <div class="test pass">
+      <h3>🔗 Endpoint Configuration Section</h3>
+      <p>Should show:</p>
+      <ul>
+        <li>"API Endpoint Configurations" heading</li>
+        <li>"Add Configuration" button</li>
+        <li>
+          List of existing configurations (or "No endpoint configurations found"
+          message)
+        </li>
+      </ul>
+    </div>
+
+    <div class="test pass">
+      <h3>⚙️ Configuration Form (when "Add Configuration" is clicked)</h3>
+      <p>Should include fields for:</p>
+      <ul>
+        <li>Configuration Name</li>
+        <li>Base URL</li>
+        <li>Environment (Development/Staging/Production)</li>
+        <li>Authentication Type (None/API Key/Basic Auth/Bearer Token)</li>
+        <li>Connection Test functionality</li>
+      </ul>
+    </div>
+
+    <div class="test pass">
+      <h3>🧪 Test Functionality</h3>
+      <p>You should be able to:</p>
+      <ul>
+        <li>
+          Add a new endpoint configuration (e.g.,
+          https://jsonplaceholder.typicode.com)
+        </li>
+        <li>Test the connection using the "Test Connection" button</li>
+        <li>Save the configuration</li>
+        <li>Set it as the active configuration</li>
+      </ul>
+    </div>
+
+    <div class="instructions">
+      <h2>🚀 Quick Test</h2>
+      <p>Try this configuration:</p>
+      <ul>
+        <li><strong>Name:</strong> JSONPlaceholder Test</li>
+        <li><strong>Base URL:</strong> https://jsonplaceholder.typicode.com</li>
+        <li><strong>Environment:</strong> Development</li>
+        <li><strong>Authentication:</strong> None</li>
+        <li><strong>Test Endpoint:</strong> /posts/1</li>
+      </ul>
+      <p>
+        Click "Test Connection" - you should see a success message with response
+        time!
+      </p>
+    </div>
+
+    <div class="test pass">
+      <h2>✨ Expected Result</h2>
+      <p>
+        If everything is working, you should see a fully functional Settings
+        page with all the features above, NOT "Settings Page (TODO)".
+      </p>
+    </div>
+
+    <script>
+      // Auto-check if frontend is running
+      fetch("http://localhost:3000/settings")
+        .then((response) => {
+          if (response.ok) {
+            document.getElementById("status").innerHTML =
+              '<div class="test pass">✅ Frontend is accessible on port 3000</div>';
+          } else {
+            document.getElementById("status").innerHTML =
+              '<div class="test fail">❌ Frontend returned error: ' +
+              response.status +
+              "</div>";
+          }
+        })
+        .catch((error) => {
+          document.getElementById("status").innerHTML =
+            '<div class="test fail">❌ Cannot connect to frontend: ' +
+            error.message +
+            "</div>";
+        });
+    </script>
+
+    <div id="status"></div>
+  </body>
+</html>

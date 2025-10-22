@@ -1,6 +1,6 @@
-import { ApiResponse, PaginatedResponse } from '@/types/common';
-import { API_CONFIG, STORAGE_KEYS } from '@/utils/constants';
-import { storage } from '@/utils/helpers';
+import { ApiResponse, PaginatedResponse } from "../types/common";
+import { API_CONFIG, STORAGE_KEYS } from "../utils/constants";
+import { storage } from "../utils/helpers";
 
 // API client configuration
 interface ApiClientConfig {
@@ -15,19 +15,35 @@ class ApiClient {
   private baseURL: string;
 
   constructor(config: Partial<ApiClientConfig> = {}) {
+    // Check for dynamically stored base URL first
+    const storedBaseUrl =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("atlas2-api-base-url")
+        : null;
+
     this.config = {
       ...API_CONFIG,
       ...config,
+      baseUrl: storedBaseUrl || config.baseUrl || API_CONFIG.baseUrl,
     };
     this.baseURL = this.config.baseUrl;
   }
 
+  // Method to update base URL dynamically
+  setBaseUrl(baseUrl: string) {
+    this.baseURL = baseUrl;
+    this.config.baseUrl = baseUrl;
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("atlas2-api-base-url", baseUrl);
+    }
+  }
+
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
-    // DEVELOPMENT BYPASS: Return mock responses for development
-    if (import.meta.env.DEV) {
+    // DEVELOPMENT BYPASS: Return mock responses for development (can be disabled with env var)
+    if (import.meta.env.DEV && import.meta.env.VITE_DISABLE_MOCK !== "true") {
       return this.mockResponse<T>(endpoint, options);
     }
 
@@ -35,7 +51,7 @@ class ApiClient {
     const token = storage.get<string>(STORAGE_KEYS.authToken);
 
     const defaultHeaders: HeadersInit = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(token && { Authorization: `Bearer ${token}` }),
     };
 
@@ -53,25 +69,28 @@ class ApiClient {
     for (let attempt = 1; attempt <= this.config.retryAttempts; attempt++) {
       try {
         const response = await fetch(url, config);
-        
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+          const error = new Error(
+            errorData.message ||
+              `HTTP ${response.status}: ${response.statusText}`,
+          );
           (error as any).status = response.status;
           (error as any).data = errorData;
           throw error;
         }
 
         // Handle empty responses
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
           return await response.json();
         } else {
           return {} as T;
         }
       } catch (error) {
         lastError = error as Error;
-        
+
         // Don't retry on authentication errors or client errors (4xx)
         if ((error as any).status >= 400 && (error as any).status < 500) {
           break;
@@ -83,7 +102,9 @@ class ApiClient {
         }
 
         // Wait before retrying
-        await new Promise(resolve => setTimeout(resolve, this.config.retryDelay * attempt));
+        await new Promise((resolve) =>
+          setTimeout(resolve, this.config.retryDelay * attempt),
+        );
       }
     }
 
@@ -91,17 +112,20 @@ class ApiClient {
   }
 
   // Mock response handler for development
-  private async mockResponse<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async mockResponse<T>(
+    endpoint: string,
+    options: RequestInit = {},
+  ): Promise<T> {
     // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Mock upload endpoint
-    if (endpoint.includes('/upload/upload') && options.method === 'POST') {
+    if (endpoint.includes("/upload/upload") && options.method === "POST") {
       const mockJob = {
         id: `job-${Date.now()}`,
-        fileName: 'test.csv',
+        fileName: "test.csv",
         fileSize: 1024,
-        status: 'completed',
+        status: "completed",
         progress: 100,
         totalRecords: 100,
         recordsProcessed: 100,
@@ -112,29 +136,29 @@ class ApiClient {
     }
 
     // Mock upload history
-    if (endpoint.includes('/upload/jobs') && options.method === 'GET') {
+    if (endpoint.includes("/upload/jobs") && options.method === "GET") {
       const mockHistory = [
         {
-          id: 'job-1',
-          fileName: 'test.csv',
+          id: "job-1",
+          fileName: "test.csv",
           fileSize: 1024,
-          status: 'completed',
+          status: "completed",
           progress: 100,
           totalRecords: 100,
           recordsProcessed: 100,
           createdAt: new Date().toISOString(),
-        }
+        },
       ];
       return { data: mockHistory } as T;
     }
 
     // Mock job status
-    if (endpoint.includes('/upload/jobs/') && options.method === 'GET') {
+    if (endpoint.includes("/upload/jobs/") && options.method === "GET") {
       const mockJob = {
-        id: 'job-1',
-        fileName: 'test.csv',
+        id: "job-1",
+        fileName: "test.csv",
         fileSize: 1024,
-        status: 'completed',
+        status: "completed",
         progress: 100,
         totalRecords: 100,
         recordsProcessed: 100,
@@ -157,42 +181,65 @@ class ApiClient {
         }
       });
     }
-    
+
     return this.request<T>(url.pathname + url.search);
   }
 
   async post<T>(endpoint: string, data?: any): Promise<T> {
     return this.request<T>(endpoint, {
-      method: 'POST',
+      method: "POST",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
 
   async put<T>(endpoint: string, data?: any): Promise<T> {
     return this.request<T>(endpoint, {
-      method: 'PUT',
+      method: "PUT",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
 
   async patch<T>(endpoint: string, data?: any): Promise<T> {
     return this.request<T>(endpoint, {
-      method: 'PATCH',
+      method: "PATCH",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
 
   async delete<T>(endpoint: string): Promise<T> {
     return this.request<T>(endpoint, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
   // File upload
-  async upload<T>(endpoint: string, file: File, additionalData?: Record<string, any>): Promise<T> {
+  async upload<T>(
+    endpoint: string,
+    file: File,
+    additionalData?: Record<string, any>,
+  ): Promise<T> {
+    // DEVELOPMENT BYPASS: Return mock responses for development (can be disabled with env var)
+    if (import.meta.env.DEV && import.meta.env.VITE_DISABLE_MOCK !== "true") {
+      // Mock upload response
+      if (endpoint.includes("/upload/upload")) {
+        const mockJob = {
+          id: `job-${Date.now()}`,
+          fileName: file.name,
+          fileSize: file.size,
+          status: "completed",
+          progress: 100,
+          totalRecords: 100,
+          recordsProcessed: 100,
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+        };
+        return mockJob as T;
+      }
+    }
+
     const formData = new FormData();
-    formData.append('file', file);
-    
+    formData.append("file", file);
+
     if (additionalData) {
       Object.entries(additionalData).forEach(([key, value]) => {
         formData.append(key, String(value));
@@ -205,7 +252,7 @@ class ApiClient {
     };
 
     const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: 'POST',
+      method: "POST",
       body: formData,
       headers,
       signal: AbortSignal.timeout(this.config.timeout),
@@ -213,7 +260,9 @@ class ApiClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      const error = new Error(
+        errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+      );
       (error as any).status = response.status;
       (error as any).data = errorData;
       throw error;
@@ -236,16 +285,18 @@ class ApiClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      const error = new Error(
+        errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+      );
       (error as any).status = response.status;
       throw error;
     }
 
     const blob = await response.blob();
     const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = downloadUrl;
-    link.download = filename || 'download';
+    link.download = filename || "download";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -259,79 +310,94 @@ export const apiClient = new ApiClient();
 // API service classes
 export class AuthService {
   async login(credentials: { username: string; password: string }) {
-    return apiClient.post('/auth/login', credentials);
+    return apiClient.post("/auth/login", credentials);
   }
 
-  async register(userData: { username: string; email: string; password: string }) {
-    return apiClient.post('/auth/register', userData);
+  async register(userData: {
+    username: string;
+    email: string;
+    password: string;
+  }) {
+    return apiClient.post("/auth/register", userData);
   }
 
   async logout() {
-    return apiClient.post('/auth/logout');
+    return apiClient.post("/auth/logout");
   }
 
   async refreshToken(refreshToken: string) {
-    return apiClient.post('/auth/refresh', { refreshToken });
+    return apiClient.post("/auth/refresh", { refreshToken });
   }
 
   async forgotPassword(email: string) {
-    return apiClient.post('/auth/forgot-password', { email });
+    return apiClient.post("/auth/forgot-password", { email });
   }
 
   async resetPassword(token: string, password: string) {
-    return apiClient.post('/auth/reset-password', { token, password });
+    return apiClient.post("/auth/reset-password", { token, password });
   }
 
   async changePassword(currentPassword: string, newPassword: string) {
-    return apiClient.post('/auth/change-password', { currentPassword, newPassword });
+    return apiClient.post("/auth/change-password", {
+      currentPassword,
+      newPassword,
+    });
   }
 
   async getProfile() {
-    return apiClient.get('/auth/profile');
+    return apiClient.get("/auth/profile");
   }
 
   async updateProfile(userData: Partial<{ username: string; email: string }>) {
-    return apiClient.put('/auth/profile', userData);
+    return apiClient.put("/auth/profile", userData);
   }
 }
 
 export class UploadService {
   async uploadFile(file: File, metadata?: any) {
-    return apiClient.upload('/api/upload', file, metadata);
+    return apiClient.upload("/upload/upload", file, metadata);
   }
 
-  async getUploads(params?: { page?: number; limit?: number; status?: string }) {
-    return apiClient.get<PaginatedResponse>('/api/uploads', params);
+  async getUploads(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+  }) {
+    return apiClient.get<PaginatedResponse>("/upload/jobs", params);
   }
 
   async getUpload(id: string) {
-    return apiClient.get(`/api/uploads/${id}`);
+    return apiClient.get(`/upload/jobs/${id}`);
   }
 
   async deleteUpload(id: string) {
-    return apiClient.delete(`/api/uploads/${id}`);
+    return apiClient.delete(`/upload/jobs/${id}`);
   }
 
   async getUploadProgress(jobId: string) {
-    return apiClient.get(`/api/upload/status/${jobId}`);
+    return apiClient.get(`/upload/jobs/${jobId}`);
   }
 
   async cancelUpload(jobId: string) {
-    return apiClient.post(`/api/upload/cancel/${jobId}`);
+    return apiClient.post(`/upload/jobs/${jobId}/cancel`);
   }
 
   async downloadProcessedFile(id: string) {
-    return apiClient.download(`/api/uploads/${id}/download`);
+    return apiClient.download(`/upload/download/${id}`);
   }
 }
 
 export class MappingService {
   async createMapping(mappingData: any) {
-    return apiClient.post('/api/mappings', mappingData);
+    return apiClient.post("/api/mappings", mappingData);
   }
 
-  async getMappings(params?: { page?: number; limit?: number; search?: string }) {
-    return apiClient.get<PaginatedResponse>('/api/mappings', params);
+  async getMappings(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) {
+    return apiClient.get<PaginatedResponse>("/api/mappings", params);
   }
 
   async getMapping(id: string) {
@@ -347,11 +413,14 @@ export class MappingService {
   }
 
   async previewMapping(mappingData: any, sampleData?: any[]) {
-    return apiClient.post('/api/mappings/preview', { mapping: mappingData, sampleData });
+    return apiClient.post("/api/mappings/preview", {
+      mapping: mappingData,
+      sampleData,
+    });
   }
 
   async validateMapping(mappingData: any) {
-    return apiClient.post('/api/mappings/validate', mappingData);
+    return apiClient.post("/api/mappings/validate", mappingData);
   }
 
   async duplicateMapping(id: string, name?: string) {
@@ -359,33 +428,43 @@ export class MappingService {
   }
 
   async getMappingTemplates() {
-    return apiClient.get('/api/mappings/templates');
+    return apiClient.get("/api/mappings/templates");
   }
 
-  async createTemplate(mappingData: any, templateData: { name: string; description?: string }) {
-    return apiClient.post('/api/mappings/templates', { mapping: mappingData, ...templateData });
+  async createTemplate(
+    mappingData: any,
+    templateData: { name: string; description?: string },
+  ) {
+    return apiClient.post("/api/mappings/templates", {
+      mapping: mappingData,
+      ...templateData,
+    });
   }
 }
 
 export class ApiService {
   setAuthToken(token: string) {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       storage.set(STORAGE_KEYS.authToken, token);
     }
   }
 
   clearAuthToken() {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       storage.remove(STORAGE_KEYS.authToken);
     }
   }
 
   async createApiConfiguration(configData: any) {
-    return apiClient.post('/api/apis', configData);
+    return apiClient.post("/api/apis", configData);
   }
 
-  async getApiConfigurations(params?: { page?: number; limit?: number; search?: string }) {
-    return apiClient.get<PaginatedResponse>('/api/apis', params);
+  async getApiConfigurations(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) {
+    return apiClient.get<PaginatedResponse>("/api/apis", params);
   }
 
   async getApiConfiguration(id: string) {
@@ -401,11 +480,11 @@ export class ApiService {
   }
 
   async testApiConnection(configData: any) {
-    return apiClient.post('/api/apis/test', configData);
+    return apiClient.post("/api/apis/test", configData);
   }
 
   async importOpenApiSpec(specData: any) {
-    return apiClient.post('/api/apis/import', specData);
+    return apiClient.post("/api/apis/import", specData);
   }
 
   async getApiEndpoints(apiId: string) {
@@ -419,11 +498,15 @@ export class ApiService {
 
 export class TransformationService {
   async createTransformation(transformationData: any) {
-    return apiClient.post('/api/transformations', transformationData);
+    return apiClient.post("/api/transformations", transformationData);
   }
 
-  async getTransformations(params?: { page?: number; limit?: number; status?: string }) {
-    return apiClient.get<PaginatedResponse>('/api/transformations', params);
+  async getTransformations(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+  }) {
+    return apiClient.get<PaginatedResponse>("/api/transformations", params);
   }
 
   async getTransformation(id: string) {
@@ -431,7 +514,10 @@ export class TransformationService {
   }
 
   async executeTransformation(mappingId: string, options?: any) {
-    return apiClient.post('/api/transformations/execute', { mappingId, ...options });
+    return apiClient.post("/api/transformations/execute", {
+      mappingId,
+      ...options,
+    });
   }
 
   async getTransformationProgress(jobId: string) {
@@ -442,8 +528,10 @@ export class TransformationService {
     return apiClient.post(`/api/transformations/cancel/${jobId}`);
   }
 
-  async downloadResults(id: string, format: string = 'csv') {
-    return apiClient.download(`/api/transformations/${id}/download?format=${format}`);
+  async downloadResults(id: string, format: string = "csv") {
+    return apiClient.download(
+      `/api/transformations/${id}/download?format=${format}`,
+    );
   }
 
   async getTransformationHistory(mappingId: string) {
@@ -453,27 +541,31 @@ export class TransformationService {
 
 export class MonitoringService {
   async getSystemHealth() {
-    return apiClient.get('/api/monitoring/health');
+    return apiClient.get("/api/monitoring/health");
   }
 
   async getSystemMetrics() {
-    return apiClient.get('/api/monitoring/metrics');
+    return apiClient.get("/api/monitoring/metrics");
   }
 
   async getJobStatistics() {
-    return apiClient.get('/api/monitoring/jobs');
+    return apiClient.get("/api/monitoring/jobs");
   }
 
   async getUserActivity(params?: { startDate?: string; endDate?: string }) {
-    return apiClient.get('/api/monitoring/activity', params);
+    return apiClient.get("/api/monitoring/activity", params);
   }
 
   async getPerformanceMetrics() {
-    return apiClient.get('/api/monitoring/performance');
+    return apiClient.get("/api/monitoring/performance");
   }
 
-  async getErrorLogs(params?: { page?: number; limit?: number; level?: string }) {
-    return apiClient.get<PaginatedResponse>('/api/monitoring/logs', params);
+  async getErrorLogs(params?: {
+    page?: number;
+    limit?: number;
+    level?: string;
+  }) {
+    return apiClient.get<PaginatedResponse>("/api/monitoring/logs", params);
   }
 }
 
