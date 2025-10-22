@@ -1,9 +1,10 @@
-import { Router } from 'express';
-import { createAuthRoutes } from './auth.routes';
-import { createUploadRoutes } from './upload.routes';
-import { createMappingRoutes } from './mapping.routes';
-import { createIntegrationRoutes } from './integration.routes';
-import { createValidationRoutes } from './validation.routes';
+import { Router } from "express";
+import { createAuthRoutes } from "./auth.routes";
+import { createUploadRoutes } from "./upload.routes";
+import { createMappingRoutes } from "./mapping.routes";
+import { createIntegrationRoutes } from "./integration.routes";
+import { createValidationRoutes } from "./validation.routes";
+import { createAnalyticsRoutes } from "./analytics.routes";
 
 export function createRoutes(
   authController: any,
@@ -11,26 +12,54 @@ export function createRoutes(
   mappingController: any,
   integrationController: any,
   validationController: any,
+  analyticsController: any,
   authMiddleware: any,
-  errorMiddleware: any
+  errorMiddleware: any,
 ): Router {
   const router = Router();
 
   // Health check
-  router.get('/health', (req, res) => {
+  router.get("/health", (req, res) => {
     res.json({
-      status: 'ok',
+      status: "ok",
       timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version || '1.0.0',
+      version: process.env.npm_package_version || "1.0.0",
     });
   });
 
   // API routes
-  router.use('/auth', createAuthRoutes(authController, authMiddleware, errorMiddleware));
-  router.use('/upload', createUploadRoutes(uploadController, authMiddleware, errorMiddleware));
-  router.use('/mapping', createMappingRoutes(mappingController, authMiddleware, errorMiddleware));
-  router.use('/integrations', createIntegrationRoutes(integrationController, authMiddleware, errorMiddleware));
-  router.use('/validation', createValidationRoutes(validationController, authMiddleware, errorMiddleware));
+  router.use(
+    "/auth",
+    createAuthRoutes(authController, authMiddleware, errorMiddleware),
+  );
+  router.use(
+    "/upload",
+    createUploadRoutes(uploadController, authMiddleware, errorMiddleware),
+  );
+  router.use(
+    "/mapping",
+    createMappingRoutes(mappingController, authMiddleware, errorMiddleware),
+  );
+  router.use(
+    "/integrations",
+    createIntegrationRoutes(
+      integrationController,
+      authMiddleware,
+      errorMiddleware,
+    ),
+  );
+  router.use(
+    "/validation",
+    createValidationRoutes(
+      validationController,
+      authMiddleware,
+      errorMiddleware,
+    ),
+  );
+  router.use(
+    "/analytics",
+    createAnalyticsRoutes(analyticsController, authMiddleware, errorMiddleware),
+  );
 
   return router;
 }

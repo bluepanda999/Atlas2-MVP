@@ -222,7 +222,7 @@ export class JobQueueManagementService {
         JSON.stringify(jobData.dependencies || []),
         jobData.max_retries || this.queueConfiguration.default_retries,
         0,
-        jobData.scheduled_at || new Date(),
+        new Date().toISOString(), // scheduled_at will be set by default
         0,
         JSON.stringify(jobData.metadata),
       ];
@@ -348,7 +348,7 @@ export class JobQueueManagementService {
 
       if (progress !== undefined) {
         updates.push(`progress = $${paramIndex}`);
-        values.push(progress);
+        values.push(progress.toString());
         paramIndex++;
       }
 
@@ -497,7 +497,8 @@ export class JobQueueManagementService {
       const statusResult = await this.databaseService.query(statusQuery);
       const jobsByStatus = statusResult.rows.reduce(
         (acc: Record<JobStatus, number>, row: any) => {
-          acc[row.status] = parseInt(row.count);
+          const status = row.status as JobStatus;
+          acc[status] = parseInt(row.count);
           return acc;
         },
         {} as Record<JobStatus, number>,
@@ -513,7 +514,8 @@ export class JobQueueManagementService {
       const priorityResult = await this.databaseService.query(priorityQuery);
       const jobsByPriority = priorityResult.rows.reduce(
         (acc: Record<JobPriority, number>, row: any) => {
-          acc[row.priority] = parseInt(row.count);
+          const priority = row.priority as JobPriority;
+          acc[priority] = parseInt(row.count);
           return acc;
         },
         {} as Record<JobPriority, number>,
@@ -529,7 +531,8 @@ export class JobQueueManagementService {
       const typeResult = await this.databaseService.query(typeQuery);
       const jobsByType = typeResult.rows.reduce(
         (acc: Record<JobType, number>, row: any) => {
-          acc[row.type] = parseInt(row.count);
+          const type = row.type as JobType;
+          acc[type] = parseInt(row.count);
           return acc;
         },
         {} as Record<JobType, number>,
@@ -537,9 +540,9 @@ export class JobQueueManagementService {
 
       // Calculate metrics
       const totalJobs = Object.values(jobsByStatus).reduce(
-        (sum, count) => sum + count,
+        (sum, count) => (sum as number) + (count as number),
         0,
-      );
+      ) as number;
       const completedJobs = jobsByStatus[JobStatus.COMPLETED] || 0;
       const failedJobs = jobsByStatus[JobStatus.FAILED] || 0;
       const successRate =
@@ -565,7 +568,7 @@ export class JobQueueManagementService {
       const resourceUtilization = await this.getResourceUtilization();
 
       return {
-        total_jobs: totalJobs,
+        total_jobs: totalJobs as number,
         jobs_by_status: jobsByStatus,
         jobs_by_priority: jobsByPriority,
         jobs_by_type: jobsByType,
@@ -821,7 +824,9 @@ export class JobQueueManagementService {
       const query = "SELECT status FROM jobs WHERE id = ANY($1)";
       const result = await this.databaseService.query(query, [dependencies]);
 
-      return result.rows.every((job) => job.status === JobStatus.COMPLETED);
+      return result.rows.every(
+        (job: any) => job.status === JobStatus.COMPLETED,
+      );
     } catch (error) {
       logger.error("Error checking dependencies met:", error);
       return false;

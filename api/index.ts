@@ -1,57 +1,67 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import compression from 'compression';
-import rateLimit from 'express-rate-limit';
-import { config } from './config/config';
-import { logger } from './utils/logger';
-import { DatabaseService } from './services/database.service';
-import { UserRepository } from './repositories/user.repository';
-import { UploadRepository } from './repositories/upload.repository';
-import { MappingRepository } from './repositories/mapping.repository';
-import { IntegrationRepository } from './repositories/integration.repository';
-import { AuthService } from './services/auth.service';
-import { UploadService } from './services/upload.service';
-import { MappingService } from './services/mapping.service';
-import { IntegrationService } from './services/integration.service';
-import { ValidationService } from './services/validation.service';
-import { WebSocketService } from './services/websocket.service';
-import { JobQueueService } from './services/job-queue.service';
-import { AuthController } from './controllers/auth.controller';
-import { UploadController } from './controllers/upload.controller';
-import { MappingController } from './controllers/mapping.controller';
-import { IntegrationController } from './controllers/integration.controller';
-import { ValidationController } from './controllers/validation.controller';
-import { AuthMiddleware } from './middleware/auth.middleware';
-import { ErrorMiddleware } from './middleware/error.middleware';
-import { createRoutes } from './routes';
+import express from "express";
+import { createServer } from "http";
+import cors from "cors";
+import helmet from "helmet";
+import compression from "compression";
+import rateLimit from "express-rate-limit";
+import { config } from "./config/config.js";
+import { logger } from "./utils/logger";
+import { DatabaseService } from "./services/database.service";
+import { UserRepository } from "./repositories/user.repository";
+import { UploadRepository } from "./repositories/upload.repository";
+import { MappingRepository } from "./repositories/mapping.repository";
+import { IntegrationRepository } from "./repositories/integration.repository";
+import { AuthService } from "./services/auth.service";
+import { UploadService } from "./services/upload.service";
+import { MappingService } from "./services/mapping.service";
+import { IntegrationService } from "./services/integration.service";
+import { ValidationService } from "./services/validation.service";
+
+import { WebSocketService } from "./services/websocket.service";
+import { JobQueueService } from "./services/job-queue.service";
+import { AuthController } from "./controllers/auth.controller";
+import { UploadController } from "./controllers/upload.controller";
+import { MappingController } from "./controllers/mapping.controller";
+import { IntegrationController } from "./controllers/integration.controller";
+import { ValidationController } from "./controllers/validation.controller";
+import { AnalyticsController } from "./controllers/analytics.controller";
+import { AuthMiddleware } from "./middleware/auth.middleware";
+import { ErrorMiddleware } from "./middleware/error.middleware";
+import { createRoutes } from "./routes";
 
 class Application {
   public app: express.Application;
+  public server: any;
   private databaseService: DatabaseService;
   private jobQueueService: JobQueueService;
-  private webSocketService: WebSocketService;
+  private webSocketService?: WebSocketService;
 
   constructor() {
     this.app = express();
+    this.server = createServer(this.app);
     this.databaseService = new DatabaseService();
     this.jobQueueService = new JobQueueService();
-    this.webSocketService = new WebSocketService();
   }
 
   public async initialize(): Promise<void> {
     try {
       // Initialize database
       await this.databaseService.connect();
-      logger.info('Database connected successfully');
+      logger.info("Database connected successfully");
 
       // Initialize job queue
       await this.jobQueueService.initialize();
-      logger.info('Job queue initialized successfully');
+      logger.info("Job queue initialized successfully");
 
-      // Initialize WebSocket service
-      await this.webSocketService.initialize();
-      logger.info('WebSocket service initialized successfully');
+      // Initialize WebSocket service after other services are ready
+      const uploadRepository = new UploadRepository(this.databaseService);
+      const validationService = new ValidationService(uploadRepository);
+      this.webSocketService = new WebSocketService(
+        this.server,
+        validationService,
+        uploadRepository,
+      );
+      logger.info("WebSocket service initialized successfully");
 
       // Setup middleware
       this.setupMiddleware();
@@ -62,9 +72,9 @@ class Application {
       // Setup error handling
       this.setupErrorHandling();
 
-      logger.info('Application initialized successfully');
+      logger.info("Application initialized successfully");
     } catch (error) {
-      logger.error('Failed to initialize application:', error);
+      logger.error("Failed to initialize application:", error);
       throw error;
     }
   }
@@ -72,29 +82,31 @@ class Application {
   private setupMiddleware(): void {
     // Security middleware
     this.app.use(helmet());
-    this.app.use(cors({
-      origin: config.cors.origins,
-      credentials: true,
-    }));
+    this.app.use(
+      cors({
+        origin: config.cors.origins,
+        credentials: true,
+      }),
+    );
 
     // Rate limiting
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
       max: config.rateLimit.max, // limit each IP to 100 requests per windowMs
-      message: 'Too many requests from this IP, please try again later.',
+      message: "Too many requests from this IP, please try again later.",
     });
-    this.app.use('/api', limiter);
+    this.app.use("/api", limiter);
 
     // General middleware
     this.app.use(compression());
-    this.app.use(express.json({ limit: '10mb' }));
-    this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    this.app.use(express.json({ limit: "10mb" }));
+    this.app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
     // Request logging
-    this.app.use((req, res, next) => {
-      logger.info(`${req.method} ${req.path}`, {
-        ip: req.ip,
-        userAgent: req.get('User-Agent'),
+    this.app.use((_req, _res, next) => {
+      logger.info(`${_req.method} ${_req.path}`, {
+        ip: _req.ip,
+        userAgent: _req.get("User-Agent"),
       });
       next();
     });
@@ -105,42 +117,55 @@ class Application {
     const userRepository = new UserRepository(this.databaseService);
     const uploadRepository = new UploadRepository(this.databaseService);
     const mappingRepository = new MappingRepository(this.databaseService);
-    const integrationRepository = new IntegrationRepository(this.databaseService);
+    const integrationRepository = new IntegrationRepository(
+      this.databaseService,
+    );
 
     const authService = new AuthService(userRepository);
-    const uploadService = new UploadService(uploadRepository, this.jobQueueService);
+    const uploadService = new UploadService(
+      uploadRepository,
+      this.jobQueueService,
+    );
     const mappingService = new MappingService(mappingRepository);
     const integrationService = new IntegrationService(integrationRepository);
-    const validationService = new ValidationService(this.databaseService, this.webSocketService);
+    const validationService = new ValidationService(uploadRepository);
 
     // Initialize controllers
     const authController = new AuthController(authService);
     const uploadController = new UploadController(uploadService);
     const mappingController = new MappingController(mappingService);
     const integrationController = new IntegrationController(integrationService);
-    const validationController = new ValidationController(validationService);
+    const validationController = new ValidationController(
+      validationService,
+      this.webSocketService!,
+    );
+    const analyticsController = new AnalyticsController(this.databaseService);
 
     // Initialize middleware
     const authMiddleware = new AuthMiddleware(userRepository);
     const errorMiddleware = new ErrorMiddleware();
 
     // Setup routes
-    this.app.use('/api', createRoutes(
-      authController,
-      uploadController,
-      mappingController,
-      integrationController,
-      validationController,
-      authMiddleware,
-      errorMiddleware
-    ));
+    this.app.use(
+      "/api",
+      createRoutes(
+        authController,
+        uploadController,
+        mappingController,
+        integrationController,
+        validationController,
+        analyticsController,
+        authMiddleware,
+        errorMiddleware,
+      ),
+    );
 
     // Root endpoint
-    this.app.get('/', (req, res) => {
+    this.app.get("/", (_req, res) => {
       res.json({
-        name: 'Atlas2 API',
-        version: process.env.npm_package_version || '1.0.0',
-        status: 'running',
+        name: "Atlas2 API",
+        version: process.env.npm_package_version || "1.0.0",
+        status: "running",
         timestamp: new Date().toISOString(),
       });
     });
@@ -148,17 +173,17 @@ class Application {
 
   private setupErrorHandling(): void {
     const errorMiddleware = new ErrorMiddleware();
-    
+
     // 404 handler
     this.app.use(errorMiddleware.notFound);
-    
+
     // Global error handler
     this.app.use(errorMiddleware.handle);
   }
 
   public async start(): Promise<void> {
     const port = config.port || 3000;
-    
+
     this.app.listen(port, () => {
       logger.info(`Server running on port ${port}`);
       logger.info(`Environment: ${config.nodeEnv}`);
@@ -167,53 +192,54 @@ class Application {
   }
 
   public async shutdown(): Promise<void> {
-    logger.info('Shutting down application...');
-    
+    logger.info("Shutting down application...");
+
     // Close database connection
     await this.databaseService.disconnect();
-    
+
     // Close job queue
     await this.jobQueueService.shutdown();
-    
+
     // Close WebSocket service
-    await this.webSocketService.shutdown();
-    
-    logger.info('Application shutdown complete');
+    await this.webSocketService?.shutdown();
+
+    logger.info("Application shutdown complete");
   }
 }
 
 // Handle graceful shutdown
 const app = new Application();
 
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, shutting down gracefully');
+process.on("SIGTERM", async () => {
+  logger.info("SIGTERM received, shutting down gracefully");
   await app.shutdown();
   process.exit(0);
 });
 
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received, shutting down gracefully');
+process.on("SIGINT", async () => {
+  logger.info("SIGINT received, shutting down gracefully");
   await app.shutdown();
   process.exit(0);
 });
 
 // Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception:', error);
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught Exception:", error);
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("Unhandled Rejection at:", promise, "reason:", reason);
   process.exit(1);
 });
 
 // Start the application
 if (require.main === module) {
-  app.initialize()
+  app
+    .initialize()
     .then(() => app.start())
     .catch((error) => {
-      logger.error('Failed to start application:', error);
+      logger.error("Failed to start application:", error);
       process.exit(1);
     });
 }
