@@ -15,6 +15,7 @@ import Upload from "./pages/Upload";
 import Mapping from "./pages/Mapping";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import Settings from "./pages/Settings";
+import Integrations from "./pages/Integrations";
 
 // Components
 import { DataValidation } from "./components/features/validation/DataValidation";
@@ -176,7 +177,7 @@ const App: React.FC = () => {
             path="/integrations"
             element={
               <ProtectedRoute>
-                <div>Integrations Page (TODO)</div>
+                <Integrations />
               </ProtectedRoute>
             }
           />
